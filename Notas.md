@@ -26,3 +26,6 @@ isval, nos dice si podemos seguir bajando, y por ultimo declaramos la apbstracci
 eval1, es la regla mas importante, simplemente traduce las reglas a nuestro código, es simplemente darle el valor de nuestro código, y se llama eval 1 porque es necesario llamarla hasta que no entre ninguna regla
 
 El segundo video introduce mas tipo, como los naturales y una estructura como el if then else, en lamda.ml, no hay mucho que destacar, salvo que true y false no tienen variables libres y que un valor contiene a los valores numéricos, en mll, metemos los tokens necesarios para reconocer y en el mly,, los colocamos para crear las expresiones, no es muy complejo., es slimilar a lo que hicimos antes pero menos abstractos
+
+
+Meteremos un tipo Tmfix para la nueva recursión
