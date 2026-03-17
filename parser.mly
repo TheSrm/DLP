@@ -61,6 +61,8 @@ appTerm :
       { TmIsZero $2 }
   | appTerm atomicTerm
       { TmApp ($1, $2) }
+  |  FIX atomicTerm (*Implementado para hacer que si escribo algo que pueda volver a meterlo de vuelta *)
+      { TmFix $2 }
 
 atomicTerm :
     LPAREN term RPAREN

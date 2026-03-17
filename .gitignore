@@ -3,4 +3,6 @@ lambda-3/
 .DS_Store
 *.swp
 *.o
-
+*.cmi
+*.cmo
+top

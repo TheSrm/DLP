@@ -119,6 +119,14 @@ let rec typeof ctx tm = match tm with
       let tyT1 = typeof ctx t1 in
       let ctx' = addbinding ctx x tyT1 in
       typeof ctx' t2
+
+  | TmFix t1 ->
+      let tyT1 = typeof ctx t1 in
+      (match tyT1 with
+           TyArr (tyT11, tyT12) ->
+             if tyT11 = tyT12 then tyT11
+             else raise (Type_error "result of body not compatible with domain")
+         | _ -> raise (Type_error "arrow type expected"))
 ;;
 
 
@@ -153,6 +161,8 @@ let rec string_of_term = function
       "(" ^ string_of_term t1 ^ " " ^ string_of_term t2 ^ ")"
   | TmLetIn (s, t1, t2) ->
       "let " ^ s ^ " = " ^ string_of_term t1 ^ " in " ^ string_of_term t2
+  | TmFix t ->
+      "fix " ^ "(" ^ string_of_term t ^ ")"
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -188,6 +198,8 @@ let rec free_vars tm = match tm with
       lunion (free_vars t1) (free_vars t2)
   | TmLetIn (s, t1, t2) ->
       lunion (ldif (free_vars t2) [s]) (free_vars t1)
+  | TmFix t ->
+      free_vars t
 ;;
 
 let rec fresh_name x l =
@@ -227,6 +239,8 @@ let rec subst x s tm = match tm with
            then TmLetIn (y, subst x s t1, subst x s t2)
            else let z = fresh_name y (free_vars t2 @ fvs) in
                 TmLetIn (z, subst x s t1, subst x s (subst y (TmVar z) t2))
+  | TmFix t ->
+      TmFix (subst x s t)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -313,6 +327,14 @@ let rec eval1 tm = match tm with
   | TmLetIn(x, t1, t2) ->
       let t1' = eval1 t1 in
       TmLetIn (x, t1', t2)
+    (*E -FixBeta*) (*Si nos llega un termino totalmente evaluado, hago la recursividad como tal *)
+  | TmFix (TmAbs(x, _, t)) ->
+      subst x tm  t
+
+   (* E-Fix *)
+  | TmFix t1 ->
+      let t1' = eval1 t1 in
+      TmFix t1'
 
   | _ ->
       raise NoRuleApplies
