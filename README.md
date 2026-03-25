@@ -3,6 +3,6 @@ Apartados que ya están hechos
 
 * [X] Apartado de multilinea
 
-* [X] Apartado de revursividad, faltan por subir los ejemplos pero tambien los tengo preparados
+* [X] Apartado de recursividad,  con ejemplos
 
-* [X] Apartado de texto (EN PROCESO AHORA MISMO SIGUENDO EL VIDEO)
+* [X] Apartado de texto, con apartado adicional length 
