@@ -8,6 +8,7 @@
 %token FALSE
 %token IF
 %token THEN
+%token CONCAT
 %token ELSE
 %token SUCC
 %token PRED
@@ -16,7 +17,9 @@
 %token IN
 %token BOOL
 %token NAT
+%token STRING
 %token LETREC
+%token FIX
 
 %token LPAREN
 %token RPAREN
@@ -25,9 +28,11 @@
 %token COLON
 %token ARROW
 %token EOF
+%token LENGTH
 
 %token <int> INTV
 %token <string> IDV
+%token <string> STRINGV
 
 %start s
 %type <Lambda.term> s
@@ -63,7 +68,11 @@ appTerm :
       { TmApp ($1, $2) }
   |  FIX atomicTerm (*Implementado para hacer que si escribo algo que pueda volver a meterlo de vuelta *)
       { TmFix $2 }
-
+  | CONCAT atomicTerm atomicTerm
+        { TmConcat ($2, $3) }
+  | LENGTH atomicTerm
+            { TmLength $2 }
+            
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
@@ -73,6 +82,8 @@ atomicTerm :
       { TmFalse }
   | IDV
       { TmVar $1 }
+  | STRINGV
+      { TmString $1 }
   | INTV
       { let rec f = function
             0 -> TmZero
@@ -92,4 +103,5 @@ atomicTy :
       { TyBool }
   | NAT
       { TyNat }
-
+  | STRING
+      { TyString }

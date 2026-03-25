@@ -4,6 +4,7 @@
 type ty =
     TyBool
   | TyNat
+  | TyString
   | TyArr of ty * ty
 ;;
 
@@ -24,6 +25,9 @@ type term =
   | TmApp of term * term
   | TmLetIn of string * term * term
   | TmFix of term
+  | TmString of string
+  | TmConcat of term * term
+  | TmLength of term
 ;;
 
 
@@ -49,6 +53,8 @@ let rec string_of_ty ty = match ty with
       "Bool"
   | TyNat ->
       "Nat"
+  | TyString ->
+     "String"
   | TyArr (ty1, ty2) ->
       "(" ^ string_of_ty ty1 ^ ")" ^ " -> " ^ "(" ^ string_of_ty ty2 ^ ")"
 ;;
@@ -127,6 +133,17 @@ let rec typeof ctx tm = match tm with
              if tyT11 = tyT12 then tyT11
              else raise (Type_error "result of body not compatible with domain")
          | _ -> raise (Type_error "arrow type expected"))
+
+  | TmString _ ->
+      TyString
+
+  | TmConcat (t1, t2) ->
+      if typeof ctx t1 = TyString && typeof ctx t2 = TyString then TyString
+      else raise (Type_error "arguments of concat must be strings")
+
+  | TmLength t ->
+      if typeof ctx t = TyString then TyNat
+      else raise (Type_error "length requires a string argument")
 ;;
 
 
@@ -163,6 +180,12 @@ let rec string_of_term = function
       "let " ^ s ^ " = " ^ string_of_term t1 ^ " in " ^ string_of_term t2
   | TmFix t ->
       "fix " ^ "(" ^ string_of_term t ^ ")"
+  | TmString s ->
+      "\"" ^ s ^ "\""
+  | TmConcat (t1, t2) ->
+      "concat " ^ "(" ^ string_of_term t1 ^ ") " ^ "(" ^ string_of_term t2 ^ ")"
+  | TmLength t ->
+      "length " ^ "(" ^ string_of_term t ^ ")"
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -199,6 +222,12 @@ let rec free_vars tm = match tm with
   | TmLetIn (s, t1, t2) ->
       lunion (ldif (free_vars t2) [s]) (free_vars t1)
   | TmFix t ->
+      free_vars t
+  | TmString _ ->
+      []
+  | TmConcat (t1, t2) ->
+      lunion (free_vars t1) (free_vars t2)
+  | TmLength t ->
       free_vars t
 ;;
 
@@ -241,6 +270,12 @@ let rec subst x s tm = match tm with
                 TmLetIn (z, subst x s t1, subst x s (subst y (TmVar z) t2))
   | TmFix t ->
       TmFix (subst x s t)
+  | TmString s ->
+      TmString s
+  | TmConcat (t1, t2) ->
+      TmConcat (subst x s t1, subst x s t2)
+  | TmLength t ->
+      TmLength (subst x s t)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -253,8 +288,13 @@ let rec isval tm = match tm with
     TmTrue  -> true
   | TmFalse -> true
   | TmAbs _ -> true
+  | TmString _ -> true
   | t when isnumericval t -> true
   | _ -> false
+;;
+
+let rec nat_of_int n =
+  if n <= 0 then TmZero else TmSucc (nat_of_int (n - 1))
 ;;
 
 exception NoRuleApplies
@@ -335,6 +375,30 @@ let rec eval1 tm = match tm with
   | TmFix t1 ->
       let t1' = eval1 t1 in
       TmFix t1'
+
+   (* E-Concat *) 
+  | TmConcat (TmString s1, TmString s2) ->
+      TmString (s1 ^ s2)
+  
+  
+    (* E-Concat *) 
+  | TmConcat (TmString s1, t2) ->
+      let t2' = eval1 t2 in
+      TmConcat (TmString s1, t2')
+
+     (* E-Concat *) 
+  | TmConcat (t1, TmString s2) ->
+    let t1' = eval1 t1 in
+    TmConcat (t1', TmString s2)
+
+  | (* E-Length *)
+    TmLength (TmString s) ->
+      nat_of_int (String.length s)
+
+  | (* E-LengthEval *)
+    TmLength t ->
+      let t' = eval1 t in
+      TmLength t'
 
   | _ ->
       raise NoRuleApplies
