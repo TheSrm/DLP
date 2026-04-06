@@ -379,8 +379,7 @@ let rec eval1 tm = match tm with
    (* E-Concat *) 
   | TmConcat (TmString s1, TmString s2) ->
       TmString (s1 ^ s2)
-  
-  
+      
     (* E-Concat *) 
   | TmConcat (TmString s1, t2) ->
       let t2' = eval1 t2 in
@@ -390,6 +389,10 @@ let rec eval1 tm = match tm with
   | TmConcat (t1, TmString s2) ->
     let t1' = eval1 t1 in
     TmConcat (t1', TmString s2)
+
+  | TmConcat (t1, t2) ->
+      let t1' = eval1 t1 in
+      TmConcat (t1', t2)
 
   | (* E-Length *)
     TmLength (TmString s) ->
@@ -411,4 +414,3 @@ let rec eval tm =
   with
     NoRuleApplies -> tm
 ;;
-
