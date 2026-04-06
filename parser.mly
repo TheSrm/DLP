@@ -1,4 +1,3 @@
-
 %{
   open Lambda;;
 %}
@@ -29,19 +28,24 @@
 %token ARROW
 %token EOF
 %token LENGTH
+%token SEMISEMI
 
 %token <int> INTV
 %token <string> IDV
 %token <string> STRINGV
 
-%start s
-%type <Lambda.term> s
+%start input
+%type <Lambda.term> input
 
 %%
 
-s :
+input :
     term EOF
       { $1 }
+  | term SEMISEMI
+      { $1 }
+  | EOF
+      { raise End_of_file }
 
 term :
     appTerm

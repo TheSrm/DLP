@@ -1,11 +1,11 @@
-
 {
   open Parser;;
   exception Lexical_error;;
 }
 
 rule token = parse
-    [' ' '\t']  { token lexbuf }
+    [' ' '\t' '\n' '\r']  { token lexbuf }
+  | ";;"        { SEMISEMI }
   | "lambda"    { LAMBDA }
   | "L"         { LAMBDA }
   | "true"      { TRUE }
@@ -39,4 +39,3 @@ rule token = parse
                               STRINGV (String.sub s 1 (String.length s - 2))}
   | eof         { EOF }
   | _           { raise Lexical_error }
-
