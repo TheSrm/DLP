@@ -5,20 +5,41 @@ open Lambda;;
 open Parser;;
 open Lexer;;
 
+let read_command () =
+  let buffer = Buffer.create 64 in
+  let semis_index s =
+    let rec aux i =
+      if i + 1 >= String.length s then None
+      else if s.[i] = ';' && s.[i + 1] = ';' then Some i
+      else aux (i + 1)
+    in
+    aux 0
+  in
+  let rec loop () =
+    let line = read_line () in
+    match semis_index line with
+    | Some i ->
+        Buffer.add_substring buffer line 0 i;
+        Buffer.contents buffer
+    | None ->
+        Buffer.add_string buffer line;
+        Buffer.add_char buffer '\n';
+        loop ()
+  in
+  loop ()
+;;
+
 let top_level_loop () =
   print_endline "Evaluator of lambda expressions...";
-
-  let lexbuf = Lexing.from_channel stdin in
-
   let rec loop ctx =
     print_string ">> ";
     flush stdout;
     try
-      let tm = input token lexbuf in
-      let tyTm = typeof ctx tm in
-      print_endline (string_of_term (eval tm) ^ " : " ^ string_of_ty tyTm);
-      loop ctx
+      let c = input token (from_string (read_command ())) in
+      loop (execute ctx c)
     with
+    | End_of_file ->
+        print_endline "...bye!!!"
     | Lexical_error ->
         print_endline "lexical error";
         loop ctx
@@ -28,8 +49,6 @@ let top_level_loop () =
     | Type_error e ->
         print_endline ("type error: " ^ e);
         loop ctx
-    | End_of_file ->
-        print_endline "...bye!!!"
   in
   loop emptyctx
 ;;

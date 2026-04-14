@@ -5,7 +5,6 @@
 
 rule token = parse
     [' ' '\t' '\n' '\r']  { token lexbuf }
-  | ";;"        { SEMISEMI }
   | "lambda"    { LAMBDA }
   | "L"         { LAMBDA }
   | "true"      { TRUE }
@@ -22,6 +21,7 @@ rule token = parse
   | "Bool"      { BOOL }
   | "Nat"       { NAT }
   | "String"    { STRING }
+  | "Exit"      { QUIT }
   | "fix"       { FIX }
   | "length"    { LENGTH }
   | '('         { LPAREN }

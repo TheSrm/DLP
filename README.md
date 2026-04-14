@@ -7,4 +7,4 @@
 
 * [X] Apartado de texto, con apartado adicional length 
 
-* [ ] Apartado de contexto para variables globales (En proceso)
+* [X] Apartado de contexto para variables globales (Faltaría poder registrar alias de tipo N = Nat o N2 = N->N, podemos usar el mismo contexto, pero no se recomienda repetir lo mismo para los tipos 

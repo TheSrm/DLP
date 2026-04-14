@@ -17,6 +17,7 @@
 %token BOOL
 %token NAT
 %token STRING
+%token QUIT
 %token LETREC
 %token FIX
 
@@ -28,24 +29,23 @@
 %token ARROW
 %token EOF
 %token LENGTH
-%token SEMISEMI
 
 %token <int> INTV
 %token <string> IDV
 %token <string> STRINGV
 
 %start input
-%type <Lambda.term> input
+%type <Lambda.command> input
 
 %%
 
 input :
-    term EOF
-      { $1 }
-  | term SEMISEMI
-      { $1 }
-  | EOF
-      { raise End_of_file }
+    IDV EQ term EOF
+        {Bind ($1, $3)}
+  | term EOF
+      {Eval $1 }
+  | QUIT EOF
+      { Quit }
 
 term :
     appTerm
