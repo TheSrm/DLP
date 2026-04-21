@@ -5,7 +5,9 @@ type ty =
     TyBool
   | TyNat
   | TyString
+  | TyTuple of ty list
   | TyArr of ty * ty
+  | TyAlias of string
 ;;
 
 
@@ -25,12 +27,15 @@ type term =
   | TmString of string
   | TmConcat of term * term
   | TmLength of term
+  | TmTuple of term list
+  | TmProj of int * term
 ;;
 
 
 type command =
     Eval of term
   | Bind of string * term
+  | BindTy of string * ty
   | Quit 
 ;;
 
@@ -43,6 +48,9 @@ type context =
 ;;
 
 exception Type_error of string
+;;
+
+exception Syntax_error of string
 ;;
 
 
@@ -82,8 +90,38 @@ let rec string_of_ty ty = match ty with
       "Nat"
   | TyString ->
      "String"
+  | TyTuple tys ->
+      "{" ^ String.concat ", " (List.map string_of_ty tys) ^ "}"
   | TyArr (ty1, ty2) ->
       "(" ^ string_of_ty ty1 ^ ")" ^ " -> " ^ "(" ^ string_of_ty ty2 ^ ")"
+  | TyAlias x ->
+      x
+;;
+
+let resolve_ty ctx ty =
+  let rec aux visited ty = match ty with
+      TyBool ->
+        TyBool
+    | TyNat ->
+        TyNat
+    | TyString ->
+        TyString
+    | TyTuple tys ->
+        TyTuple (List.map (aux visited) tys)
+    | TyArr (ty1, ty2) ->
+        TyArr (aux visited ty1, aux visited ty2)
+    | TyAlias name ->
+        if List.mem name visited then
+          raise (Type_error ("cyclic type alias " ^ name))
+        else (* SI es un alias, buscamos en el contexto si está y si es un alias de tipo o de término*)
+          match List.assoc_opt name ctx with
+              Some (TyBind real_ty) -> aux (name :: visited) real_ty
+            | Some (TyTmBind _) ->
+                raise (Type_error (name ^ " is a term binding, not a type alias"))
+            | None ->
+                raise (Type_error ("unknown type alias " ^ name))
+  in
+  aux [] ty
 ;;
 
 let rec typeof ctx tm = match tm with
@@ -97,9 +135,9 @@ let rec typeof ctx tm = match tm with
 
     (* T-If *)
   | TmIf (t1, t2, t3) ->
-      if typeof ctx t1 = TyBool then
-        let tyT2 = typeof ctx t2 in
-        if typeof ctx t3 = tyT2 then tyT2
+      if resolve_ty ctx (typeof ctx t1) = TyBool then
+        let tyT2 = resolve_ty ctx (typeof ctx t2) in
+        if resolve_ty ctx (typeof ctx t3) = tyT2 then tyT2
         else raise (Type_error "arms of conditional have different types")
       else
         raise (Type_error "guard of conditional not a boolean")
@@ -110,34 +148,35 @@ let rec typeof ctx tm = match tm with
 
     (* T-Succ *)
   | TmSucc t1 ->
-      if typeof ctx t1 = TyNat then TyNat
+      if resolve_ty ctx (typeof ctx t1) = TyNat then TyNat
       else raise (Type_error "argument of succ is not a number")
 
     (* T-Pred *)
   | TmPred t1 ->
-      if typeof ctx t1 = TyNat then TyNat
+      if resolve_ty ctx (typeof ctx t1) = TyNat then TyNat
       else raise (Type_error "argument of pred is not a number")
 
     (* T-Iszero *)
   | TmIsZero t1 ->
-      if typeof ctx t1 = TyNat then TyBool
+      if resolve_ty ctx (typeof ctx t1) = TyNat then TyBool
       else raise (Type_error "argument of iszero is not a number")
 
     (* T-Var *)
   | TmVar x ->
-      (try gettbinding ctx x with
+      (try resolve_ty ctx (gettbinding ctx x) with
        _ -> raise (Type_error ("no binding type for variable " ^ x)))
 
     (* T-Abs *)
   | TmAbs (x, tyT1, t2) ->
-      let ctx' = addtbinding ctx x tyT1 in
-      let tyT2 = typeof ctx' t2 in
-      TyArr (tyT1, tyT2)
+      let tyT1' = resolve_ty ctx tyT1 in
+      let ctx' = addtbinding ctx x tyT1' in
+      let tyT2 = resolve_ty ctx' (typeof ctx' t2) in
+      TyArr (tyT1', tyT2)
 
     (* T-App *)
   | TmApp (t1, t2) ->
-      let tyT1 = typeof ctx t1 in
-      let tyT2 = typeof ctx t2 in
+      let tyT1 = resolve_ty ctx (typeof ctx t1) in
+      let tyT2 = resolve_ty ctx (typeof ctx t2) in
       (match tyT1 with
            TyArr (tyT11, tyT12) ->
              if tyT2 = tyT11 then tyT12
@@ -146,12 +185,12 @@ let rec typeof ctx tm = match tm with
 
     (* T-Let *)
   | TmLetIn (x, t1, t2) ->
-      let tyT1 = typeof ctx t1 in
+      let tyT1 = resolve_ty ctx (typeof ctx t1) in
       let ctx' = addtbinding ctx x tyT1 in
-      typeof ctx' t2
+      resolve_ty ctx' (typeof ctx' t2)
 
   | TmFix t1 ->
-      let tyT1 = typeof ctx t1 in
+      let tyT1 = resolve_ty ctx (typeof ctx t1) in
       (match tyT1 with
            TyArr (tyT11, tyT12) ->
              if tyT11 = tyT12 then tyT11
@@ -162,12 +201,25 @@ let rec typeof ctx tm = match tm with
       TyString
 
   | TmConcat (t1, t2) ->
-      if typeof ctx t1 = TyString && typeof ctx t2 = TyString then TyString
+      if resolve_ty ctx (typeof ctx t1) = TyString && resolve_ty ctx (typeof ctx t2) = TyString then TyString
       else raise (Type_error "arguments of concat must be strings")
 
   | TmLength t ->
-      if typeof ctx t = TyString then TyNat
+      if resolve_ty ctx (typeof ctx t) = TyString then TyNat
       else raise (Type_error "length requires a string argument")
+
+  | TmTuple terms ->
+      TyTuple (List.map (fun term -> resolve_ty ctx (typeof ctx term)) terms)
+
+  | TmProj (index, term) ->
+      (* La proyeccion devuelve el tipo guardado en la posicion solicitada. *)
+      (match resolve_ty ctx (typeof ctx term) with
+           TyTuple tys ->
+             if index < 1 || index > List.length tys then
+               raise (Type_error "tuple projection index out of bounds")
+             else
+               List.nth tys (index - 1)
+         | _ -> raise (Type_error "tuple type expected in projection"))
 ;;
 
 
@@ -210,6 +262,10 @@ let rec string_of_term = function
       "concat " ^ "(" ^ string_of_term t1 ^ ") " ^ "(" ^ string_of_term t2 ^ ")"
   | TmLength t ->
       "length " ^ "(" ^ string_of_term t ^ ")"
+  | TmTuple terms ->
+      "{" ^ String.concat ", " (List.map string_of_term terms) ^ "}"
+  | TmProj (index, term) ->
+      "proj " ^ string_of_int index ^ " (" ^ string_of_term term ^ ")"
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -253,6 +309,11 @@ let rec free_vars tm = match tm with
       lunion (free_vars t1) (free_vars t2)
   | TmLength t ->
       free_vars t
+  | TmTuple terms ->
+      (* Las variables libres de una tupla son la union de las de cada componente. *)
+      List.fold_left (fun vars term -> lunion vars (free_vars term)) [] terms
+  | TmProj (_, term) ->
+      free_vars term
 ;;
 
 let rec fresh_name x l =
@@ -300,6 +361,11 @@ let rec subst x s tm = match tm with
       TmConcat (subst x s t1, subst x s t2)
   | TmLength t ->
       TmLength (subst x s t)
+  | TmTuple terms ->
+      (* La sustitucion se aplica por separado a cada componente de la tupla. *)
+      TmTuple (List.map (subst x s) terms)
+  | TmProj (index, term) ->
+      TmProj (index, subst x s term)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -313,6 +379,7 @@ let rec isval tm = match tm with
   | TmFalse -> true
   | TmAbs _ -> true
   | TmString _ -> true
+  | TmTuple terms -> List.for_all isval terms
   | t when isnumericval t -> true
   | _ -> false
 ;;
@@ -429,10 +496,35 @@ let rec eval1 ctx tm = match tm with
       let t' = eval1 ctx t in
       TmLength t'
 
+  | TmTuple terms ->
+      (* Se evaluan las componentes de izquierda a derecha hasta que todas sean valores. *)
+      eval_tuple_elements ctx [] terms
+
+  | TmProj (index, TmTuple terms) when List.for_all isval terms ->
+      if index < 1 || index > List.length terms then
+        raise NoRuleApplies
+      else
+        List.nth terms (index - 1)
+
+  | TmProj (index, term) ->
+      let term' = eval1 ctx term in
+      TmProj (index, term')
+
   | TmVar x ->
     getvbinding ctx x 
   | _ ->
       raise NoRuleApplies
+and eval_tuple_elements ctx evaluated pending =
+  match pending with
+  | [] ->
+      raise NoRuleApplies
+  | term :: rest ->
+      if isval term then
+        eval_tuple_elements ctx (term :: evaluated) rest
+      else
+        (* Se reconstruye la tupla tras reducir un paso la primera componente reducible. *)
+        let term' = eval1 ctx term in
+        TmTuple (List.rev_append evaluated (term' :: rest))
 ;;
 
 let apply_ctx ctx tm =  List.fold_left (fun t x -> subst  x (getvbinding ctx x) t) tm (free_vars tm);;
@@ -459,5 +551,9 @@ let execute ctx = function
       let tm' = eval ctx tm in
       print_endline (x ^ " : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
       addvbinding ctx x tyTm tm'
+  | BindTy (x, ty) ->
+      let ty' = resolve_ty ctx ty in
+      print_endline (x ^ " = " ^ string_of_ty ty');
+      addtbinding ctx x ty'
   | Quit ->
       raise End_of_file;;

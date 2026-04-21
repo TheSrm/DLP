@@ -43,6 +43,9 @@ let top_level_loop () =
     | Lexical_error ->
         print_endline "lexical error";
         loop ctx
+    | Syntax_error e ->
+        print_endline ("syntax error: " ^ e);
+        loop ctx
     | Parse_error ->
         print_endline "syntax error";
         loop ctx

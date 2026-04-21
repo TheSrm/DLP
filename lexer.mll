@@ -24,14 +24,22 @@ rule token = parse
   | "Exit"      { QUIT }
   | "fix"       { FIX }
   | "length"    { LENGTH }
+  (* proj introduce la proyeccion de tuplas por posicion. *)
+  | "proj"      { PROJ }
   | '('         { LPAREN }
   | ')'         { RPAREN }
+  (* Llaves y comas se usan para construir tuplas y sus tipos. *)
+  | '{'         { LBRACE }
+  | '}'         { RBRACE }
+  | ','         { COMMA }
   | '.'         { DOT }
   | '='         { EQ }
   | ':'         { COLON }
   | "->"        { ARROW }
   | "concat"    { CONCAT }
   | ['0'-'9']+  { INTV (int_of_string (Lexing.lexeme lexbuf)) }
+  | ['A'-'Z']['A'-'Z' 'a'-'z' '_' '0'-'9']*
+                { IDT (Lexing.lexeme lexbuf) }
   | ['a'-'z']['a'-'z' '_' '0'-'9']*
                 { IDV (Lexing.lexeme lexbuf) }
   | '"' [^ '"' '\n']* '"' 

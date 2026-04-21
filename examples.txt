@@ -71,3 +71,10 @@ letrec fact: Nat -> Nat =
 in
   fact 5
 ;;
+
+% Tuplas
+
+{true, 0}
+proj 1 {true, 0}
+proj 2 {true, 0, "hola"}
+lambda x: {Bool, Nat}. proj 2 x

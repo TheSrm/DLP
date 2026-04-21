@@ -1,0 +1,1126 @@
+   0  $accept : %entry% $end
+
+   1  input : IDV EQ term EOF
+   2        | IDT EQ ty EOF
+   3        | term EOF
+   4        | QUIT EOF
+
+   5  term : appTerm
+   6       | IF term THEN term ELSE term
+   7       | LAMBDA IDV COLON ty DOT term
+   8       | LET IDV EQ term IN term
+   9       | LETREC IDV COLON ty EQ term IN term
+
+  10  appTerm : atomicTerm
+  11          | SUCC atomicTerm
+  12          | PRED atomicTerm
+  13          | ISZERO atomicTerm
+  14          | appTerm atomicTerm
+  15          | FIX atomicTerm
+  16          | CONCAT atomicTerm atomicTerm
+  17          | LENGTH atomicTerm
+  18          | PROJ INTV atomicTerm
+
+  19  atomicTerm : LPAREN term RPAREN
+  20             | LBRACE tupleTerms RBRACE
+  21             | LBRACE term RBRACE
+  22             | TRUE
+  23             | FALSE
+  24             | IDV
+  25             | STRINGV
+  26             | INTV
+
+  27  ty : atomicTy
+  28     | atomicTy ARROW ty
+
+  29  atomicTy : LPAREN ty RPAREN
+  30           | LBRACE tupleTypes RBRACE
+  31           | LBRACE ty RBRACE
+  32           | BOOL
+  33           | NAT
+  34           | STRING
+  35           | IDT
+
+  36  tupleTerms : term COMMA term
+  37             | term COMMA tupleTerms
+
+  38  tupleTypes : ty COMMA ty
+  39             | ty COMMA tupleTypes
+
+  40  %entry% : '\001' input
+
+state 0
+	$accept : . %entry% $end  (0)
+
+	'\001'  shift 1
+	.  error
+
+	%entry%  goto 2
+
+
+state 1
+	%entry% : '\001' . input  (40)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	QUIT  shift 12
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 20
+	IDT  shift 21
+	STRINGV  shift 22
+	.  error
+
+	input  goto 23
+	term  goto 24
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 2
+	$accept : %entry% . $end  (0)
+
+	$end  accept
+
+
+state 3
+	term : LAMBDA . IDV COLON ty DOT term  (7)
+
+	IDV  shift 27
+	.  error
+
+
+state 4
+	atomicTerm : TRUE .  (22)
+
+	.  reduce 22
+
+
+state 5
+	atomicTerm : FALSE .  (23)
+
+	.  reduce 23
+
+
+state 6
+	term : IF . term THEN term ELSE term  (6)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 29
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 7
+	appTerm : CONCAT . atomicTerm atomicTerm  (16)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 30
+
+
+state 8
+	appTerm : SUCC . atomicTerm  (11)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 31
+
+
+state 9
+	appTerm : PRED . atomicTerm  (12)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 32
+
+
+state 10
+	appTerm : ISZERO . atomicTerm  (13)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 33
+
+
+state 11
+	term : LET . IDV EQ term IN term  (8)
+
+	IDV  shift 34
+	.  error
+
+
+state 12
+	input : QUIT . EOF  (4)
+
+	EOF  shift 35
+	.  error
+
+
+state 13
+	term : LETREC . IDV COLON ty EQ term IN term  (9)
+
+	IDV  shift 36
+	.  error
+
+
+state 14
+	appTerm : FIX . atomicTerm  (15)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 37
+
+
+state 15
+	appTerm : PROJ . INTV atomicTerm  (18)
+
+	INTV  shift 38
+	.  error
+
+
+state 16
+	atomicTerm : LPAREN . term RPAREN  (19)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 39
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 17
+	atomicTerm : LBRACE . tupleTerms RBRACE  (20)
+	atomicTerm : LBRACE . term RBRACE  (21)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 40
+	appTerm  goto 25
+	atomicTerm  goto 26
+	tupleTerms  goto 41
+
+
+state 18
+	appTerm : LENGTH . atomicTerm  (17)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 42
+
+
+state 19
+	atomicTerm : INTV .  (26)
+
+	.  reduce 26
+
+
+state 20
+	input : IDV . EQ term EOF  (1)
+	atomicTerm : IDV .  (24)
+
+	EQ  shift 43
+	TRUE  reduce 24
+	FALSE  reduce 24
+	LPAREN  reduce 24
+	LBRACE  reduce 24
+	EOF  reduce 24
+	INTV  reduce 24
+	IDV  reduce 24
+	STRINGV  reduce 24
+
+
+state 21
+	input : IDT . EQ ty EOF  (2)
+
+	EQ  shift 44
+	.  error
+
+
+state 22
+	atomicTerm : STRINGV .  (25)
+
+	.  reduce 25
+
+
+state 23
+	%entry% : '\001' input .  (40)
+
+	.  reduce 40
+
+
+state 24
+	input : term . EOF  (3)
+
+	EOF  shift 45
+	.  error
+
+
+state 25
+	term : appTerm .  (5)
+	appTerm : appTerm . atomicTerm  (14)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	THEN  reduce 5
+	ELSE  reduce 5
+	IN  reduce 5
+	RPAREN  reduce 5
+	RBRACE  reduce 5
+	COMMA  reduce 5
+	EOF  reduce 5
+
+	atomicTerm  goto 46
+
+
+state 26
+	appTerm : atomicTerm .  (10)
+
+	.  reduce 10
+
+
+state 27
+	term : LAMBDA IDV . COLON ty DOT term  (7)
+
+	COLON  shift 47
+	.  error
+
+
+state 28
+	atomicTerm : IDV .  (24)
+
+	.  reduce 24
+
+
+state 29
+	term : IF term . THEN term ELSE term  (6)
+
+	THEN  shift 48
+	.  error
+
+
+state 30
+	appTerm : CONCAT atomicTerm . atomicTerm  (16)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 49
+
+
+state 31
+	appTerm : SUCC atomicTerm .  (11)
+
+	.  reduce 11
+
+
+state 32
+	appTerm : PRED atomicTerm .  (12)
+
+	.  reduce 12
+
+
+state 33
+	appTerm : ISZERO atomicTerm .  (13)
+
+	.  reduce 13
+
+
+state 34
+	term : LET IDV . EQ term IN term  (8)
+
+	EQ  shift 50
+	.  error
+
+
+state 35
+	input : QUIT EOF .  (4)
+
+	.  reduce 4
+
+
+state 36
+	term : LETREC IDV . COLON ty EQ term IN term  (9)
+
+	COLON  shift 51
+	.  error
+
+
+state 37
+	appTerm : FIX atomicTerm .  (15)
+
+	.  reduce 15
+
+
+state 38
+	appTerm : PROJ INTV . atomicTerm  (18)
+
+	TRUE  shift 4
+	FALSE  shift 5
+	LPAREN  shift 16
+	LBRACE  shift 17
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	atomicTerm  goto 52
+
+
+state 39
+	atomicTerm : LPAREN term . RPAREN  (19)
+
+	RPAREN  shift 53
+	.  error
+
+
+state 40
+	atomicTerm : LBRACE term . RBRACE  (21)
+	tupleTerms : term . COMMA term  (36)
+	tupleTerms : term . COMMA tupleTerms  (37)
+
+	RBRACE  shift 54
+	COMMA  shift 55
+	.  error
+
+
+state 41
+	atomicTerm : LBRACE tupleTerms . RBRACE  (20)
+
+	RBRACE  shift 56
+	.  error
+
+
+state 42
+	appTerm : LENGTH atomicTerm .  (17)
+
+	.  reduce 17
+
+
+state 43
+	input : IDV EQ . term EOF  (1)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 57
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 44
+	input : IDT EQ . ty EOF  (2)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 64
+	atomicTy  goto 65
+
+
+state 45
+	input : term EOF .  (3)
+
+	.  reduce 3
+
+
+state 46
+	appTerm : appTerm atomicTerm .  (14)
+
+	.  reduce 14
+
+
+state 47
+	term : LAMBDA IDV COLON . ty DOT term  (7)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 66
+	atomicTy  goto 65
+
+
+state 48
+	term : IF term THEN . term ELSE term  (6)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 67
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 49
+	appTerm : CONCAT atomicTerm atomicTerm .  (16)
+
+	.  reduce 16
+
+
+state 50
+	term : LET IDV EQ . term IN term  (8)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 68
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 51
+	term : LETREC IDV COLON . ty EQ term IN term  (9)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 69
+	atomicTy  goto 65
+
+
+state 52
+	appTerm : PROJ INTV atomicTerm .  (18)
+
+	.  reduce 18
+
+
+state 53
+	atomicTerm : LPAREN term RPAREN .  (19)
+
+	.  reduce 19
+
+
+state 54
+	atomicTerm : LBRACE term RBRACE .  (21)
+
+	.  reduce 21
+
+
+state 55
+	tupleTerms : term COMMA . term  (36)
+	tupleTerms : term COMMA . tupleTerms  (37)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 70
+	appTerm  goto 25
+	atomicTerm  goto 26
+	tupleTerms  goto 71
+
+
+state 56
+	atomicTerm : LBRACE tupleTerms RBRACE .  (20)
+
+	.  reduce 20
+
+
+state 57
+	input : IDV EQ term . EOF  (1)
+
+	EOF  shift 72
+	.  error
+
+
+state 58
+	atomicTy : BOOL .  (32)
+
+	.  reduce 32
+
+
+state 59
+	atomicTy : NAT .  (33)
+
+	.  reduce 33
+
+
+state 60
+	atomicTy : STRING .  (34)
+
+	.  reduce 34
+
+
+state 61
+	atomicTy : LPAREN . ty RPAREN  (29)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 73
+	atomicTy  goto 65
+
+
+state 62
+	atomicTy : LBRACE . tupleTypes RBRACE  (30)
+	atomicTy : LBRACE . ty RBRACE  (31)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 74
+	atomicTy  goto 65
+	tupleTypes  goto 75
+
+
+state 63
+	atomicTy : IDT .  (35)
+
+	.  reduce 35
+
+
+state 64
+	input : IDT EQ ty . EOF  (2)
+
+	EOF  shift 76
+	.  error
+
+
+state 65
+	ty : atomicTy .  (27)
+	ty : atomicTy . ARROW ty  (28)
+
+	ARROW  shift 77
+	RPAREN  reduce 27
+	RBRACE  reduce 27
+	COMMA  reduce 27
+	DOT  reduce 27
+	EQ  reduce 27
+	EOF  reduce 27
+
+
+state 66
+	term : LAMBDA IDV COLON ty . DOT term  (7)
+
+	DOT  shift 78
+	.  error
+
+
+state 67
+	term : IF term THEN term . ELSE term  (6)
+
+	ELSE  shift 79
+	.  error
+
+
+state 68
+	term : LET IDV EQ term . IN term  (8)
+
+	IN  shift 80
+	.  error
+
+
+state 69
+	term : LETREC IDV COLON ty . EQ term IN term  (9)
+
+	EQ  shift 81
+	.  error
+
+
+state 70
+	tupleTerms : term . COMMA term  (36)
+	tupleTerms : term COMMA term .  (36)
+	tupleTerms : term . COMMA tupleTerms  (37)
+
+	COMMA  shift 55
+	RBRACE  reduce 36
+
+
+state 71
+	tupleTerms : term COMMA tupleTerms .  (37)
+
+	.  reduce 37
+
+
+state 72
+	input : IDV EQ term EOF .  (1)
+
+	.  reduce 1
+
+
+state 73
+	atomicTy : LPAREN ty . RPAREN  (29)
+
+	RPAREN  shift 82
+	.  error
+
+
+state 74
+	atomicTy : LBRACE ty . RBRACE  (31)
+	tupleTypes : ty . COMMA ty  (38)
+	tupleTypes : ty . COMMA tupleTypes  (39)
+
+	RBRACE  shift 83
+	COMMA  shift 84
+	.  error
+
+
+state 75
+	atomicTy : LBRACE tupleTypes . RBRACE  (30)
+
+	RBRACE  shift 85
+	.  error
+
+
+state 76
+	input : IDT EQ ty EOF .  (2)
+
+	.  reduce 2
+
+
+state 77
+	ty : atomicTy ARROW . ty  (28)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 86
+	atomicTy  goto 65
+
+
+state 78
+	term : LAMBDA IDV COLON ty DOT . term  (7)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 87
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 79
+	term : IF term THEN term ELSE . term  (6)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 88
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 80
+	term : LET IDV EQ term IN . term  (8)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 89
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 81
+	term : LETREC IDV COLON ty EQ . term IN term  (9)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 90
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 82
+	atomicTy : LPAREN ty RPAREN .  (29)
+
+	.  reduce 29
+
+
+state 83
+	atomicTy : LBRACE ty RBRACE .  (31)
+
+	.  reduce 31
+
+
+state 84
+	tupleTypes : ty COMMA . ty  (38)
+	tupleTypes : ty COMMA . tupleTypes  (39)
+
+	BOOL  shift 58
+	NAT  shift 59
+	STRING  shift 60
+	LPAREN  shift 61
+	LBRACE  shift 62
+	IDT  shift 63
+	.  error
+
+	ty  goto 91
+	atomicTy  goto 65
+	tupleTypes  goto 92
+
+
+state 85
+	atomicTy : LBRACE tupleTypes RBRACE .  (30)
+
+	.  reduce 30
+
+
+state 86
+	ty : atomicTy ARROW ty .  (28)
+
+	.  reduce 28
+
+
+state 87
+	term : LAMBDA IDV COLON ty DOT term .  (7)
+
+	.  reduce 7
+
+
+state 88
+	term : IF term THEN term ELSE term .  (6)
+
+	.  reduce 6
+
+
+state 89
+	term : LET IDV EQ term IN term .  (8)
+
+	.  reduce 8
+
+
+state 90
+	term : LETREC IDV COLON ty EQ term . IN term  (9)
+
+	IN  shift 93
+	.  error
+
+
+state 91
+	tupleTypes : ty . COMMA ty  (38)
+	tupleTypes : ty COMMA ty .  (38)
+	tupleTypes : ty . COMMA tupleTypes  (39)
+
+	COMMA  shift 84
+	RBRACE  reduce 38
+
+
+state 92
+	tupleTypes : ty COMMA tupleTypes .  (39)
+
+	.  reduce 39
+
+
+state 93
+	term : LETREC IDV COLON ty EQ term IN . term  (9)
+
+	LAMBDA  shift 3
+	TRUE  shift 4
+	FALSE  shift 5
+	IF  shift 6
+	CONCAT  shift 7
+	SUCC  shift 8
+	PRED  shift 9
+	ISZERO  shift 10
+	LET  shift 11
+	LETREC  shift 13
+	FIX  shift 14
+	PROJ  shift 15
+	LPAREN  shift 16
+	LBRACE  shift 17
+	LENGTH  shift 18
+	INTV  shift 19
+	IDV  shift 28
+	STRINGV  shift 22
+	.  error
+
+	term  goto 94
+	appTerm  goto 25
+	atomicTerm  goto 26
+
+
+state 94
+	term : LETREC IDV COLON ty EQ term IN term .  (9)
+
+	.  reduce 9
+
+
+37 terminals, 10 nonterminals
+41 grammar rules, 95 states

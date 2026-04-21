@@ -20,9 +20,13 @@
 %token QUIT
 %token LETREC
 %token FIX
+%token PROJ
 
 %token LPAREN
 %token RPAREN
+%token LBRACE
+%token RBRACE
+%token COMMA
 %token DOT
 %token EQ
 %token COLON
@@ -32,6 +36,7 @@
 
 %token <int> INTV
 %token <string> IDV
+%token <string> IDT
 %token <string> STRINGV
 
 %start input
@@ -42,6 +47,8 @@
 input :
     IDV EQ term EOF
         {Bind ($1, $3)}
+  | IDT EQ ty EOF
+      {BindTy ($1, $3)}
   | term EOF
       {Eval $1 }
   | QUIT EOF
@@ -76,10 +83,18 @@ appTerm :
         { TmConcat ($2, $3) }
   | LENGTH atomicTerm
             { TmLength $2 }
+  /* proj n t construye una proyeccion sobre la posicion n de una tupla. */
+  | PROJ INTV atomicTerm
+            { TmProj ($2, $3) }
             
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
+  /* Una tupla en tiempo de ejecucion se representa como una lista de terminos. */
+  | LBRACE tupleTerms RBRACE
+      { TmTuple $2 }
+  | LBRACE term RBRACE
+      { TmTuple [$2] }
   | TRUE
       { TmTrue }
   | FALSE
@@ -103,9 +118,30 @@ ty :
 atomicTy :
     LPAREN ty RPAREN
       { $2 }
+  /* El tipo de una tupla conserva el tipo de cada componente en orden. */
+  | LBRACE tupleTypes RBRACE
+      { TyTuple $2 }
+  | LBRACE ty RBRACE
+      { TyTuple [$2] }
   | BOOL
       { TyBool }
   | NAT
       { TyNat }
   | STRING
       { TyString }
+  | IDT
+      { TyAlias $1 }
+
+tupleTerms :
+    /* Exigimos al menos dos componentes . */ Todo: traducir a ingles todos los comentarios
+    term COMMA term
+      { [$1; $3] }
+  | term COMMA tupleTerms
+      { $1 :: $3 }
+
+tupleTypes :
+    /* Del mismo modo, un tipo tupla necesita al menos dos componentes. */
+    ty COMMA ty
+      { [$1; $3] }
+  | ty COMMA tupleTypes
+      { $1 :: $3 }
