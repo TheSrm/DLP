@@ -24,11 +24,8 @@ rule token = parse
   | "Exit"      { QUIT }
   | "fix"       { FIX }
   | "length"    { LENGTH }
-  (* proj introduce la proyeccion de tuplas por posicion. *)
-  | "proj"      { PROJ }
   | '('         { LPAREN }
   | ')'         { RPAREN }
-  (* Llaves y comas se usan para construir tuplas y sus tipos. *)
   | '{'         { LBRACE }
   | '}'         { RBRACE }
   | ','         { COMMA }

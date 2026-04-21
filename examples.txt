@@ -75,6 +75,6 @@ in
 % Tuplas
 
 {true, 0}
-proj 1 {true, 0}
-proj 2 {true, 0, "hola"}
-lambda x: {Bool, Nat}. proj 2 x
+ {true, 0}.1
+ {true, 0, "hola"}.2
+

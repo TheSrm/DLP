@@ -20,8 +20,7 @@
 %token QUIT
 %token LETREC
 %token FIX
-%token PROJ
-
+%token LENGTH
 %token LPAREN
 %token RPAREN
 %token LBRACE
@@ -32,8 +31,6 @@
 %token COLON
 %token ARROW
 %token EOF
-%token LENGTH
-
 %token <int> INTV
 %token <string> IDV
 %token <string> IDT
@@ -67,25 +64,29 @@ term :
       { TmLetIn ($2, TmFix (TmAbs ($2, $4, $6)), $8) }
 
 appTerm :
+    projTerm
+      { $1 }
+  | SUCC projTerm
+      { TmSucc $2 }
+  | PRED projTerm
+      { TmPred $2 }
+  | ISZERO projTerm
+      { TmIsZero $2 }
+  | appTerm projTerm
+      { TmApp ($1, $2) }
+  | FIX projTerm
+      { TmFix $2 }
+  | CONCAT projTerm projTerm
+      { TmConcat ($2, $3) }
+  | LENGTH projTerm
+      { TmLength $2 }
+
+projTerm :
     atomicTerm
       { $1 }
-  | SUCC atomicTerm
-      { TmSucc $2 }
-  | PRED atomicTerm
-      { TmPred $2 }
-  | ISZERO atomicTerm
-      { TmIsZero $2 }
-  | appTerm atomicTerm
-      { TmApp ($1, $2) }
-  |  FIX atomicTerm  (*Implemented to allow writing something that can be fed back into itself *)
-      { TmFix $2 }
-  | CONCAT atomicTerm atomicTerm
-        { TmConcat ($2, $3) }
-  | LENGTH atomicTerm
-            { TmLength $2 }
-  | PROJ INTV atomicTerm
-            { TmProj ($2, $3) }
-            
+  | projTerm DOT INTV
+      { TmProj ($3, $1) }
+
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
@@ -116,7 +117,7 @@ ty :
 atomicTy :
     LPAREN ty RPAREN
       { $2 }
-  | LBRACE tupleTypes RBRACE (*The type of a tuple preserves the type of each component in order. *)
+  | LBRACE tupleTypes RBRACE
       { TyTuple $2 }
   | LBRACE ty RBRACE
       { TyTuple [$2] }
@@ -129,14 +130,14 @@ atomicTy :
   | IDT
       { TyAlias $1 }
 
-tupleTerms : 
-    term COMMA term (*We require at least two components. *)
+tupleTerms :
+    term COMMA term
       { [$1; $3] }
   | term COMMA tupleTerms
       { $1 :: $3 }
 
 tupleTypes :
-    ty COMMA ty (*Similarly, a tuple type needs at least two components. *)
+    ty COMMA ty
       { [$1; $3] }
   | ty COMMA tupleTypes
       { $1 :: $3 }

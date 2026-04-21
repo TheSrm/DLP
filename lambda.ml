@@ -1,5 +1,5 @@
-
 (* TYPE DEFINITIONS *)
+open Format;;
 
 type ty =
     TyBool
@@ -113,7 +113,7 @@ let resolve_ty ctx ty =
     | TyAlias name ->
         if List.mem name visited then
           raise (Type_error ("cyclic type alias " ^ name))
-        else (* SI es un alias, buscamos en el contexto si está y si es un alias de tipo o de término*)
+        else
           match List.assoc_opt name ctx with
               Some (TyBind real_ty) -> aux (name :: visited) real_ty
             | Some (TyTmBind _) ->
@@ -212,7 +212,6 @@ let rec typeof ctx tm = match tm with
       TyTuple (List.map (fun term -> resolve_ty ctx (typeof ctx term)) terms)
 
   | TmProj (index, term) ->
-      (* La proyeccion devuelve el tipo guardado en la posicion solicitada. *)
       (match resolve_ty ctx (typeof ctx term) with
            TyTuple tys ->
              if index < 1 || index > List.length tys then
@@ -265,7 +264,7 @@ let rec string_of_term = function
   | TmTuple terms ->
       "{" ^ String.concat ", " (List.map string_of_term terms) ^ "}"
   | TmProj (index, term) ->
-      "proj " ^ string_of_int index ^ " (" ^ string_of_term term ^ ")"
+      "(" ^ string_of_term term ^ ")." ^ string_of_int index
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -279,41 +278,26 @@ let rec lunion l1 l2 = match l1 with
 ;;
 
 let rec free_vars tm = match tm with
-    TmTrue ->
-      []
-  | TmFalse ->
-      []
+    TmTrue -> []
+  | TmFalse -> []
   | TmIf (t1, t2, t3) ->
       lunion (lunion (free_vars t1) (free_vars t2)) (free_vars t3)
-  | TmZero ->
-      []
-  | TmSucc t ->
-      free_vars t
-  | TmPred t ->
-      free_vars t
-  | TmIsZero t ->
-      free_vars t
-  | TmVar s ->
-      [s]
-  | TmAbs (s, _, t) ->
-      ldif (free_vars t) [s]
-  | TmApp (t1, t2) ->
-      lunion (free_vars t1) (free_vars t2)
+  | TmZero -> []
+  | TmSucc t -> free_vars t
+  | TmPred t -> free_vars t
+  | TmIsZero t -> free_vars t
+  | TmVar s -> [s]
+  | TmAbs (s, _, t) -> ldif (free_vars t) [s]
+  | TmApp (t1, t2) -> lunion (free_vars t1) (free_vars t2)
   | TmLetIn (s, t1, t2) ->
       lunion (ldif (free_vars t2) [s]) (free_vars t1)
-  | TmFix t ->
-      free_vars t
-  | TmString _ ->
-      []
-  | TmConcat (t1, t2) ->
-      lunion (free_vars t1) (free_vars t2)
-  | TmLength t ->
-      free_vars t
+  | TmFix t -> free_vars t
+  | TmString _ -> []
+  | TmConcat (t1, t2) -> lunion (free_vars t1) (free_vars t2)
+  | TmLength t -> free_vars t
   | TmTuple terms ->
-      (* Las variables libres de una tupla son la union de las de cada componente. *)
       List.fold_left (fun vars term -> lunion vars (free_vars term)) [] terms
-  | TmProj (_, term) ->
-      free_vars term
+  | TmProj (_, term) -> free_vars term
 ;;
 
 let rec fresh_name x l =
@@ -321,20 +305,14 @@ let rec fresh_name x l =
 ;;
 
 let rec subst x s tm = match tm with
-    TmTrue ->
-      TmTrue
-  | TmFalse ->
-      TmFalse
+    TmTrue -> TmTrue
+  | TmFalse -> TmFalse
   | TmIf (t1, t2, t3) ->
       TmIf (subst x s t1, subst x s t2, subst x s t3)
-  | TmZero ->
-      TmZero
-  | TmSucc t ->
-      TmSucc (subst x s t)
-  | TmPred t ->
-      TmPred (subst x s t)
-  | TmIsZero t ->
-      TmIsZero (subst x s t)
+  | TmZero -> TmZero
+  | TmSucc t -> TmSucc (subst x s t)
+  | TmPred t -> TmPred (subst x s t)
+  | TmIsZero t -> TmIsZero (subst x s t)
   | TmVar y ->
       if y = x then s else tm
   | TmAbs (y, tyY, t) ->
@@ -353,19 +331,12 @@ let rec subst x s tm = match tm with
            then TmLetIn (y, subst x s t1, subst x s t2)
            else let z = fresh_name y (free_vars t2 @ fvs) in
                 TmLetIn (z, subst x s t1, subst x s (subst y (TmVar z) t2))
-  | TmFix t ->
-      TmFix (subst x s t)
-  | TmString s ->
-      TmString s
-  | TmConcat (t1, t2) ->
-      TmConcat (subst x s t1, subst x s t2)
-  | TmLength t ->
-      TmLength (subst x s t)
-  | TmTuple terms ->
-      (* La sustitucion se aplica por separado a cada componente de la tupla. *)
-      TmTuple (List.map (subst x s) terms)
-  | TmProj (index, term) ->
-      TmProj (index, subst x s term)
+  | TmFix t -> TmFix (subst x s t)
+  | TmString s -> TmString s
+  | TmConcat (t1, t2) -> TmConcat (subst x s t1, subst x s t2)
+  | TmLength t -> TmLength (subst x s t)
+  | TmTuple terms -> TmTuple (List.map (subst x s) terms)
+  | TmProj (index, term) -> TmProj (index, subst x s term)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -388,148 +359,108 @@ let rec nat_of_int n =
   if n <= 0 then TmZero else TmSucc (nat_of_int (n - 1))
 ;;
 
-
-
 exception NoRuleApplies
 ;;
 
 let rec eval1 ctx tm = match tm with
     (* E-IfTrue *)
-    TmIf (TmTrue, t2, _) ->
-      t2
-
+    TmIf (TmTrue, t2, _) -> t2
     (* E-IfFalse *)
-  | TmIf (TmFalse, _, t3) ->
-      t3
-
+  | TmIf (TmFalse, _, t3) -> t3
     (* E-If *)
   | TmIf (t1, t2, t3) ->
       let t1' = eval1 ctx t1 in
       TmIf (t1', t2, t3)
-
     (* E-Succ *)
   | TmSucc t1 ->
       let t1' = eval1 ctx t1 in
       TmSucc t1'
-
     (* E-PredZero *)
-  | TmPred TmZero ->
-      TmZero
-
+  | TmPred TmZero -> TmZero
     (* E-PredSucc *)
-  | TmPred (TmSucc nv1) when isnumericval nv1 ->
-      nv1
-
+  | TmPred (TmSucc nv1) when isnumericval nv1 -> nv1
     (* E-Pred *)
   | TmPred t1 ->
       let t1' = eval1 ctx t1 in
       TmPred t1'
-
     (* E-IszeroZero *)
-  | TmIsZero TmZero ->
-      TmTrue
-
+  | TmIsZero TmZero -> TmTrue
     (* E-IszeroSucc *)
-  | TmIsZero (TmSucc nv1) when isnumericval nv1 ->
-      TmFalse
-
+  | TmIsZero (TmSucc nv1) when isnumericval nv1 -> TmFalse
     (* E-Iszero *)
   | TmIsZero t1 ->
       let t1' = eval1 ctx t1 in
       TmIsZero t1'
-
     (* E-AppAbs *)
   | TmApp (TmAbs(x, _, t12), v2) when isval v2 ->
       subst x v2 t12
-
-    (* E-App2: evaluate argument before applying function *)
+    (* E-App2 *)
   | TmApp (v1, t2) when isval v1 ->
       let t2' = eval1 ctx t2 in
       TmApp (v1, t2')
-
-    (* E-App1: evaluate function before argument *)
+    (* E-App1 *)
   | TmApp (t1, t2) ->
       let t1' = eval1 ctx t1 in
       TmApp (t1', t2)
-
     (* E-LetV *)
   | TmLetIn (x, v1, t2) when isval v1 ->
       subst x v1 t2
-
     (* E-Let *)
   | TmLetIn(x, t1, t2) ->
       let t1' = eval1 ctx t1 in
       TmLetIn (x, t1', t2)
-    (*E -FixBeta*) (*Si nos llega un termino totalmente evaluado, hago la recursividad como tal *)
+    (* E-FixBeta *)
   | TmFix (TmAbs(x, _, t)) ->
-      subst x tm  t
-
-   (* E-Fix *)
+      subst x tm t
+    (* E-Fix *)
   | TmFix t1 ->
       let t1' = eval1 ctx t1 in
       TmFix t1'
-
-   (* E-Concat *) 
+    (* E-Concat *)
   | TmConcat (TmString s1, TmString s2) ->
       TmString (s1 ^ s2)
-      
-    (* E-Concat *) 
   | TmConcat (TmString s1, t2) ->
       let t2' = eval1 ctx t2 in
       TmConcat (TmString s1, t2')
-
-     (* E-Concat *) 
-  | TmConcat (t1, TmString s2) ->
-    let t1' = eval1 ctx t1 in
-    TmConcat (t1', TmString s2)
-
   | TmConcat (t1, t2) ->
       let t1' = eval1 ctx t1 in
       TmConcat (t1', t2)
-
-  | (* E-Length *)
-    TmLength (TmString s) ->
+    (* E-Length *)
+  | TmLength (TmString s) ->
       nat_of_int (String.length s)
-
-  | (* E-LengthEval *)
-    TmLength t ->
+  | TmLength t ->
       let t' = eval1 ctx t in
       TmLength t'
-
   | TmTuple terms ->
-      (* Se evaluan las componentes de izquierda a derecha hasta que todas sean valores. *)
       eval_tuple_elements ctx [] terms
-
   | TmProj (index, TmTuple terms) when List.for_all isval terms ->
       if index < 1 || index > List.length terms then
         raise NoRuleApplies
       else
         List.nth terms (index - 1)
-
   | TmProj (index, term) ->
       let term' = eval1 ctx term in
       TmProj (index, term')
-
   | TmVar x ->
-    getvbinding ctx x 
+      getvbinding ctx x
   | _ ->
       raise NoRuleApplies
 and eval_tuple_elements ctx evaluated pending =
   match pending with
-  | [] ->
-      raise NoRuleApplies
+  | [] -> raise NoRuleApplies
   | term :: rest ->
       if isval term then
         eval_tuple_elements ctx (term :: evaluated) rest
       else
-        (* Se reconstruye la tupla tras reducir un paso la primera componente reducible. *)
         let term' = eval1 ctx term in
         TmTuple (List.rev_append evaluated (term' :: rest))
 ;;
 
-let apply_ctx ctx tm =  List.fold_left (fun t x -> subst  x (getvbinding ctx x) t) tm (free_vars tm);;
+let apply_ctx ctx tm =
+  List.fold_left (fun t x -> subst x (getvbinding ctx x) t) tm (free_vars tm)
+;;
 
-let rec eval  ctx tm =
+let rec eval ctx tm =
   try
     let tm' = eval1 ctx tm in
     eval ctx tm'
@@ -538,22 +469,225 @@ let rec eval  ctx tm =
 ;;
 
 
+(* PRETTY PRINTER *)
 
+let rec int_of_numeric_term acc = function
+    TmZero -> Some acc
+  | TmSucc t -> int_of_numeric_term (acc + 1) t
+  | _ -> None
+;;
+
+(* print_ty prints a type with minimal parentheses.
+   Arrows are right-associative, so we only parenthesise the left side
+   when it is itself an arrow. *)
+let rec print_ty ty = match ty with
+    TyArr (ty1, ty2) ->
+      (match ty1 with
+         TyArr _ ->
+           print_string "(";
+           print_ty ty1;
+           print_string ")"
+       | _ ->
+           print_ty ty1);
+      print_string " -> ";
+      print_ty ty2
+ | TyTuple tys ->
+      open_box 1;
+      print_string "{";
+      let rec aux = function
+          [] -> ()
+        | [t] -> print_ty t
+        | t :: rest ->
+            print_ty t;
+            print_string ",";
+            print_space ();
+            aux rest
+      in aux tys;
+      print_string "}";
+      close_box ()
+  | TyBool    -> print_string "Bool"
+  | TyNat     -> print_string "Nat"
+  | TyString  -> print_string "String"
+  | TyAlias x -> print_string x
+;;
+
+(* print_term handles the top level: if/then/else, lambda, let, letrec.
+   Anything it does not recognise is delegated to print_appTerm. *)
+let rec print_term tm = match tm with
+    TmIf (t1, t2, t3) ->
+      open_vbox 0;
+      print_string "if ";
+      print_term t1;
+      print_string " then";
+      print_break 1 2;
+      print_term t2;
+      print_break 1 0;
+      print_string "else";
+      print_break 1 2;
+      print_term t3;
+      close_box ()
+  | TmAbs (x, ty, t) ->
+      open_box 0;
+      print_string ("lambda " ^ x ^ ":");
+      print_ty ty;
+      print_string ".";
+      print_term t;
+      close_box ()
+  | TmLetIn (x, TmFix (TmAbs (x', ty, t1)), t2) when x = x' ->
+      (* letrec is printed as letrec, not as let/fix *)
+      open_vbox 0;
+      print_string ("letrec " ^ x ^ " : ");
+      print_ty ty;
+      print_string " =";
+      print_break 1 2;
+      print_term t1;
+      print_break 1 0;
+      print_string "in";
+      print_break 1 2;
+      print_term t2;
+      close_box ()
+  | TmLetIn (x, t1, t2) ->
+      open_vbox 0;
+      print_string ("let " ^ x ^ " =");
+      print_break 1 2;
+      print_term t1;
+      print_break 1 0;
+      print_string "in";
+      print_break 1 2;
+      print_term t2;
+      close_box ()
+  | _ ->
+      print_appTerm tm
+
+(* print_appTerm handles function application and prefix operators.
+   Anything else is delegated to print_projTerm. *)
+and print_appTerm tm = match tm with
+    TmApp (t1, t2) ->
+      open_box 2;
+      print_appTerm t1;
+      print_space ();
+      print_projTerm t2;
+      close_box ()
+  | TmSucc t ->
+      (match int_of_numeric_term 0 (TmSucc t) with
+         Some n -> print_string (string_of_int n)
+       | None ->
+           open_box 2;
+           print_string "succ"; print_space ();
+           print_projTerm t;
+           close_box ())
+  | TmPred t ->
+      open_box 2;
+      print_string "pred"; print_space ();
+      print_projTerm t;
+      close_box ()
+  | TmIsZero t ->
+      open_box 2;
+      print_string "iszero"; print_space ();
+      print_projTerm t;
+      close_box ()
+  | TmFix t ->
+      open_box 2;
+      print_string "fix"; print_space ();
+      print_projTerm t;
+      close_box ()
+  | TmConcat (t1, t2) ->
+      open_box 2;
+      print_string "concat"; print_space ();
+      print_projTerm t1; print_space ();
+      print_projTerm t2;
+      close_box ()
+  | TmLength t ->
+      open_box 2;
+      print_string "length"; print_space ();
+      print_projTerm t;
+      close_box ()
+  | _ ->
+      print_projTerm tm
+
+(* print_projTerm handles dot-projection, possibly chained. *)
+and print_projTerm tm = match tm with
+    TmProj (i, t) ->
+      open_box 0;
+      print_projTerm t;
+      print_string ("." ^ string_of_int i);
+      close_box ()
+  | _ ->
+      print_atomicTerm tm
+
+(* print_atomicTerm handles literals, variables and tuples.
+   Any term that belongs to a higher level is wrapped in parentheses. *)
+and print_atomicTerm tm = match tm with
+    TmTrue     -> print_string "true"
+  | TmFalse    -> print_string "false"
+  | TmZero     -> print_string "0"
+  | TmVar x    -> print_string x
+  | TmString s -> print_string ("\"" ^ s ^ "\"")
+  | TmSucc _ as t ->
+      (match int_of_numeric_term 0 t with
+         Some n -> print_string (string_of_int n)
+       | None ->
+           open_box 1;
+           print_string "(";
+           print_term t;
+           print_string ")";
+           close_box ())
+  | TmTuple terms ->
+      open_box 1;
+      print_string "{";
+      let rec aux = function
+          [] -> ()
+        | [t] -> print_term t
+        | t :: rest ->
+            print_term t;
+            print_string ",";
+            print_space ();
+            aux rest
+      in aux terms;
+      print_string "}";
+      close_box ()
+  | _ ->
+      open_box 1;
+      print_string "(";
+      print_term tm;
+      print_string ")";
+      close_box ()
+;;
+
+(* pretty_printer is the single entry point used by execute.
+   's' is the label printed before the colon (either "-" or the bound name). *)
+let pretty_printer s ty tm =
+  open_vbox 0;
+  print_string s;
+  print_string " :";
+  print_space ();
+  print_ty ty;
+  print_string " =";
+  print_break 1 2;
+  print_term tm;
+  close_box ();
+  force_newline ();
+  print_flush ()
+;;
 
 let execute ctx = function
     Eval tm ->
       let tyTm = typeof ctx tm in
       let tm' = eval ctx tm in
-      print_endline ("- : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
+      pretty_printer "-" tyTm tm';
       ctx
-  | Bind (x, tm) -> 
+  | Bind (x, tm) ->
       let tyTm = typeof ctx tm in
       let tm' = eval ctx tm in
-      print_endline (x ^ " : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
+      pretty_printer x tyTm tm;
       addvbinding ctx x tyTm tm'
   | BindTy (x, ty) ->
       let ty' = resolve_ty ctx ty in
-      print_endline (x ^ " = " ^ string_of_ty ty');
+      print_string (x ^ " = ");
+      print_ty ty';
+      force_newline ();
+      print_flush ();
       addtbinding ctx x ty'
   | Quit ->
-      raise End_of_file;;
+      raise End_of_file
+;;
