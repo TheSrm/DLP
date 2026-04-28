@@ -6,6 +6,7 @@ type ty =
   | TyNat
   | TyString
   | TyTuple of ty list
+  | TyRecord of (string * ty) list
   | TyArr of ty * ty
   | TyAlias of string
 ;;
@@ -29,6 +30,8 @@ type term =
   | TmLength of term
   | TmTuple of term list
   | TmProj of int * term
+  | TmRecord of (string * term) list
+  | TmRecordProj of string * term
 ;;
 
 
@@ -92,6 +95,9 @@ let rec string_of_ty ty = match ty with
      "String"
   | TyTuple tys ->
       "{" ^ String.concat ", " (List.map string_of_ty tys) ^ "}"
+  | TyRecord fields ->
+      "{" ^ String.concat ", "
+        (List.map (fun (label, field_ty) -> label ^ " : " ^ string_of_ty field_ty) fields) ^ "}"
   | TyArr (ty1, ty2) ->
       "(" ^ string_of_ty ty1 ^ ")" ^ " -> " ^ "(" ^ string_of_ty ty2 ^ ")"
   | TyAlias x ->
@@ -108,6 +114,8 @@ let resolve_ty ctx ty =
         TyString
     | TyTuple tys ->
         TyTuple (List.map (aux visited) tys)
+    | TyRecord fields ->
+        TyRecord (List.map (fun (label, field_ty) -> (label, aux visited field_ty)) fields)
     | TyArr (ty1, ty2) ->
         TyArr (aux visited ty1, aux visited ty2)
     | TyAlias name ->
@@ -219,6 +227,15 @@ let rec typeof ctx tm = match tm with
              else
                List.nth tys (index - 1)
          | _ -> raise (Type_error "tuple type expected in projection"))
+  | TmRecord fields ->
+      TyRecord (List.map (fun (label, term) -> (label, resolve_ty ctx (typeof ctx term))) fields)
+  | TmRecordProj (label, term) ->
+      (match resolve_ty ctx (typeof ctx term) with
+           TyRecord fields ->
+             (match List.assoc_opt label fields with
+                  Some ty -> ty
+                | None -> raise (Type_error ("unknown record label " ^ label)))
+         | _ -> raise (Type_error "record type expected in projection"))
 ;;
 
 
@@ -265,6 +282,11 @@ let rec string_of_term = function
       "{" ^ String.concat ", " (List.map string_of_term terms) ^ "}"
   | TmProj (index, term) ->
       "(" ^ string_of_term term ^ ")." ^ string_of_int index
+  | TmRecord fields ->
+      "{" ^ String.concat ", "
+        (List.map (fun (label, term) -> label ^ " = " ^ string_of_term term) fields) ^ "}"
+  | TmRecordProj (label, term) ->
+      "(" ^ string_of_term term ^ ")." ^ label
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -298,6 +320,9 @@ let rec free_vars tm = match tm with
   | TmTuple terms ->
       List.fold_left (fun vars term -> lunion vars (free_vars term)) [] terms
   | TmProj (_, term) -> free_vars term
+  | TmRecord fields ->
+      List.fold_left (fun vars (_, term) -> lunion vars (free_vars term)) [] fields
+  | TmRecordProj (_, term) -> free_vars term
 ;;
 
 let rec fresh_name x l =
@@ -337,6 +362,10 @@ let rec subst x s tm = match tm with
   | TmLength t -> TmLength (subst x s t)
   | TmTuple terms -> TmTuple (List.map (subst x s) terms)
   | TmProj (index, term) -> TmProj (index, subst x s term)
+  | TmRecord fields ->
+      TmRecord (List.map (fun (label, term) -> (label, subst x s term)) fields)
+  | TmRecordProj (label, term) ->
+      TmRecordProj (label, subst x s term)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -351,6 +380,7 @@ let rec isval tm = match tm with
   | TmAbs _ -> true
   | TmString _ -> true
   | TmTuple terms -> List.for_all isval terms
+  | TmRecord fields -> List.for_all (fun (_, term) -> isval term) fields
   | t when isnumericval t -> true
   | _ -> false
 ;;
@@ -441,6 +471,15 @@ let rec eval1 ctx tm = match tm with
   | TmProj (index, term) ->
       let term' = eval1 ctx term in
       TmProj (index, term')
+  | TmRecord fields ->
+      eval_record_fields ctx [] fields
+  | TmRecordProj (label, TmRecord fields) when List.for_all (fun (_, term) -> isval term) fields ->
+      (match List.assoc_opt label fields with
+           Some term -> term
+         | None -> raise NoRuleApplies)
+  | TmRecordProj (label, term) ->
+      let term' = eval1 ctx term in
+      TmRecordProj (label, term')
   | TmVar x ->
       getvbinding ctx x
   | _ ->
@@ -454,6 +493,15 @@ and eval_tuple_elements ctx evaluated pending =
       else
         let term' = eval1 ctx term in
         TmTuple (List.rev_append evaluated (term' :: rest))
+and eval_record_fields ctx evaluated pending =
+  match pending with
+  | [] -> raise NoRuleApplies
+  | (label, term) :: rest ->
+      if isval term then
+        eval_record_fields ctx ((label, term) :: evaluated) rest
+      else
+        let term' = eval1 ctx term in
+        TmRecord (List.rev_append evaluated ((label, term') :: rest))
 ;;
 
 let apply_ctx ctx tm =
@@ -505,6 +553,25 @@ let rec print_ty ty = match ty with
       in aux tys;
       print_string "}";
       close_box ()
+  | TyRecord fields ->
+      open_box 1;
+      print_string "{";
+      let rec aux = function
+          [] -> ()
+        | [(label, field_ty)] ->
+            print_string label;
+            print_string " : ";
+            print_ty field_ty
+        | (label, field_ty) :: rest ->
+            print_string label;
+            print_string " : ";
+            print_ty field_ty;
+            print_string ",";
+            print_space ();
+            aux rest
+      in aux fields;
+      print_string "}";
+      close_box ()
   | TyBool    -> print_string "Bool"
   | TyNat     -> print_string "Nat"
   | TyString  -> print_string "String"
@@ -515,15 +582,12 @@ let rec print_ty ty = match ty with
    Anything it does not recognise is delegated to print_appTerm. *)
 let rec print_term tm = match tm with
     TmIf (t1, t2, t3) ->
-      open_vbox 0;
+      open_hovbox 0;
       print_string "if ";
       print_term t1;
-      print_string " then";
-      print_break 1 2;
+      print_string " then ";
       print_term t2;
-      print_break 1 0;
-      print_string "else";
-      print_break 1 2;
+      print_string " else ";
       print_term t3;
       close_box ()
   | TmAbs (x, ty, t) ->
@@ -535,25 +599,19 @@ let rec print_term tm = match tm with
       close_box ()
   | TmLetIn (x, TmFix (TmAbs (x', ty, t1)), t2) when x = x' ->
       (* letrec is printed as letrec, not as let/fix *)
-      open_vbox 0;
+      open_hovbox 0;
       print_string ("letrec " ^ x ^ " : ");
       print_ty ty;
-      print_string " =";
-      print_break 1 2;
+      print_string " = ";
       print_term t1;
-      print_break 1 0;
-      print_string "in";
-      print_break 1 2;
+      print_string " in ";
       print_term t2;
       close_box ()
   | TmLetIn (x, t1, t2) ->
-      open_vbox 0;
-      print_string ("let " ^ x ^ " =");
-      print_break 1 2;
+      open_hovbox 0;
+      print_string ("let " ^ x ^ " = ");
       print_term t1;
-      print_break 1 0;
-      print_string "in";
-      print_break 1 2;
+      print_string " in ";
       print_term t2;
       close_box ()
   | _ ->
@@ -612,6 +670,11 @@ and print_projTerm tm = match tm with
       print_projTerm t;
       print_string ("." ^ string_of_int i);
       close_box ()
+  | TmRecordProj (label, t) ->
+      open_box 0;
+      print_projTerm t;
+      print_string ("." ^ label);
+      close_box ()
   | _ ->
       print_atomicTerm tm
 
@@ -646,6 +709,25 @@ and print_atomicTerm tm = match tm with
       in aux terms;
       print_string "}";
       close_box ()
+  | TmRecord fields ->
+      open_box 1;
+      print_string "{";
+      let rec aux = function
+          [] -> ()
+        | [(label, term)] ->
+            print_string label;
+            print_string " = ";
+            print_term term
+        | (label, term) :: rest ->
+            print_string label;
+            print_string " = ";
+            print_term term;
+            print_string ",";
+            print_space ();
+            aux rest
+      in aux fields;
+      print_string "}";
+      close_box ()
   | _ ->
       open_box 1;
       print_string "(";
@@ -657,13 +739,12 @@ and print_atomicTerm tm = match tm with
 (* pretty_printer is the single entry point used by execute.
    's' is the label printed before the colon (either "-" or the bound name). *)
 let pretty_printer s ty tm =
-  open_vbox 0;
+  pp_set_margin std_formatter 1000;
+  open_hovbox 0;
   print_string s;
-  print_string " :";
-  print_space ();
+  print_string " : ";
   print_ty ty;
-  print_string " =";
-  print_break 1 2;
+  print_string " = ";
   print_term tm;
   close_box ();
   force_newline ();

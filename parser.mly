@@ -86,10 +86,14 @@ projTerm :
       { $1 }
   | projTerm DOT INTV
       { TmProj ($3, $1) }
+  | projTerm DOT IDV
+      { TmRecordProj ($3, $1) }
 
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
+  | LBRACE recordTerms RBRACE
+      { TmRecord $2 }
   | LBRACE tupleTerms RBRACE
       { TmTuple $2 }
   | LBRACE term RBRACE
@@ -117,6 +121,8 @@ ty :
 atomicTy :
     LPAREN ty RPAREN
       { $2 }
+  | LBRACE recordTypes RBRACE
+      { TyRecord $2 }
   | LBRACE tupleTypes RBRACE
       { TyTuple $2 }
   | LBRACE ty RBRACE
@@ -136,8 +142,20 @@ tupleTerms :
   | term COMMA tupleTerms
       { $1 :: $3 }
 
+recordTerms :
+    IDV EQ term
+      { [($1, $3)] }
+  | IDV EQ term COMMA recordTerms
+      { ($1, $3) :: $5 }
+
 tupleTypes :
     ty COMMA ty
       { [$1; $3] }
   | ty COMMA tupleTypes
       { $1 :: $3 }
+
+recordTypes :
+    IDV COLON ty
+      { [($1, $3)] }
+  | IDV COLON ty COMMA recordTypes
+      { ($1, $3) :: $5 }

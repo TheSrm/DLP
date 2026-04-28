@@ -3,8 +3,8 @@ type ty =
     TyBool
   | TyNat
   | TyString 
-  (* Los tipos tupla guardan el tipo de cada componente en orden. *)
   | TyTuple of ty list
+  | TyRecord of (string * ty) list
   | TyArr of ty * ty
   | TyAlias of string
 ;;
@@ -27,10 +27,10 @@ type term =
   | TmString of string
   | TmConcat of term * term
   | TmLength of term
-  (* Las tuplas son terminos; TyTuple representa su tipo tras el tipado. *)
   | TmTuple of term list
-  (* proj n t extrae la componente n-esima de la tupla t, empezando en 1. *)
   | TmProj of int * term
+  | TmRecord of (string * term) list
+  | TmRecordProj of string * term
 ;;
 
 type command =

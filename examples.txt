@@ -78,3 +78,15 @@ in
  {true, 0}.1
  {true, 0, "hola"}.2
 
+% Registros
+
+{x = true, y = 0}
+{x = true, y = 0}.x
+lambda r:{x:Bool, y:Nat}. r.y
+{x = 2, y = 5, z = 0}
+{x = 2, y = 5, z = 0}.x
+p = {na = {"luis", "vida1"}, e = 28}
+p.na
+p.na.1
+p.na.2
+p.e

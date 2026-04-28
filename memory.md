@@ -12,6 +12,7 @@ The current version of our interpreter implements the following extensions from 
 - Global type aliases.
 - Support for the `String` type, string literals, concatenation, and a `length` operator.
 - Support for tuples and positional projection.
+- Support for records and label-based projection.
 
 This report is divided into two parts, as requested in the assignment:
 
@@ -211,13 +212,49 @@ Examples:
 ```text
 >> {true, 0};;
 - : {Bool, Nat} = {true, 0}
->> proj 2 {true, 0, "hola"};;
+>> {true, 0, "hola"}.2;;
 - : Nat = 0
->> lambda x: {Bool, Nat}. proj 2 x;;
-- : ({Bool, Nat}) -> (Nat) = (lambda x:{Bool, Nat}. proj 2 (x))
+>> lambda x: {Bool, Nat}. x.2;;
+- : {Bool, Nat} -> Nat = lambda x:{Bool, Nat}.x.2
 ```
 
 Projection is positional and starts at index `1`.
+
+### 2.7. Records and label projection
+
+The interpreter supports records as finite collections of labelled fields. Record terms are written with braces and assignments, and record types are written with braces and labelled type annotations.
+
+Examples:
+
+```text
+>> {x = true, y = 0};;
+- : {x : Bool, y : Nat} = {x = true, y = 0}
+>> {x = true, y = 0}.x;;
+- : Bool = true
+>> lambda r:{x:Bool, y:Nat}. r.y;;
+- : {x : Bool, y : Nat} -> Nat = lambda r:{x : Bool, y : Nat}.r.y
+>> {x = 2, y = 5, z = 0};;
+- : {x : Nat, y : Nat, z : Nat} = {x = 2, y = 5, z = 0}
+>> {x = 2, y = 5, z = 0}.x;;
+- : Nat = 2
+>> p = {na = {"luis", "vida1"}, e = 28};;
+p : {na : {String, String}, e : Nat} = {na = {"luis", "vida1"}, e = 28}
+>> p.na;;
+- : {String, String} = {"luis", "vida1"}
+>> p.na.1;;
+- : String = "luis"
+>> p.na.2;;
+- : String = "vida1"
+>> p.e;;
+- : Nat = 28
+```
+
+Typing rules:
+
+- `{l1 = t1, ..., ln = tn}` has type `{l1 : T1, ..., ln : Tn}` if each `ti` has type `Ti`.
+- `t.l` requires `t` to have a record type containing the label `l`.
+
+Operationally, records evaluate their fields from left to right until all fields are values, and projection returns the value associated with the selected label.
 
 Typing rules:
 
@@ -353,5 +390,3 @@ The most relevant implementation decisions were the following:
 - Tuples were implemented using OCaml lists inside the abstract syntax tree, but only as an internal representation of tuple components, not as a replacement for lambda-calculus lists.
 
 These decisions keep the implementation relatively small while still covering the requested extensions in a clear way.
-
-

@@ -8,3 +8,9 @@
 * [X] Apartado de texto, con apartado adicional length 
 
 * [X] Apartado de contexto para variables globales y alias de tipos
+
+* [X] Apartado de registros, con su proyección
+
+* [X] Apartado de tuplas 
+
+* [] Listas (en proceso)
