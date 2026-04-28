@@ -14,3 +14,7 @@
 * [X] Apartado de tuplas 
 
 * [] Listas (en proceso)
+
+* [] Variantes
+
+* [] Subtipado
