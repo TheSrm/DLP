@@ -6,3 +6,6 @@ lambda-3/
 *.cmi
 *.cmo
 top
+lexer.ml
+parser.ml
+parser.mli
