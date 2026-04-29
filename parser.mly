@@ -17,12 +17,20 @@
 %token BOOL
 %token NAT
 %token STRING
+%token LIST
 %token QUIT
 %token LETREC
 %token FIX
 %token LENGTH
+%token NIL
+%token CONS
+%token ISNIL
+%token HEAD
+%token TAIL
 %token LPAREN
 %token RPAREN
+%token LBRACKET
+%token RBRACKET
 %token LBRACE
 %token RBRACE
 %token COMMA
@@ -80,6 +88,14 @@ appTerm :
       { TmConcat ($2, $3) }
   | LENGTH projTerm
       { TmLength $2 }
+  | CONS LBRACKET ty RBRACKET projTerm projTerm
+      { TmCons ($3, $5, $6) }
+  | ISNIL LBRACKET ty RBRACKET projTerm
+      { TmIsNil ($3, $5) }
+  | HEAD LBRACKET ty RBRACKET projTerm
+      { TmHead ($3, $5) }
+  | TAIL LBRACKET ty RBRACKET projTerm
+      { TmTail ($3, $5) }
 
 projTerm :
     atomicTerm
@@ -106,6 +122,8 @@ atomicTerm :
       { TmVar $1 }
   | STRINGV
       { TmString $1 }
+  | NIL LBRACKET ty RBRACKET
+      { TmNil $3 }
   | INTV
       { let rec f = function
             0 -> TmZero
@@ -115,6 +133,8 @@ atomicTerm :
 ty :
     atomicTy
       { $1 }
+  | LIST atomicTy
+      { TyList $2 }
   | atomicTy ARROW ty
       { TyArr ($1, $3) }
 

@@ -3,6 +3,7 @@ type ty =
     TyBool
   | TyNat
   | TyString 
+  | TyList of ty
   | TyTuple of ty list
   | TyRecord of (string * ty) list
   | TyArr of ty * ty
@@ -27,6 +28,11 @@ type term =
   | TmString of string
   | TmConcat of term * term
   | TmLength of term
+  | TmNil of ty
+  | TmCons of ty * term * term
+  | TmIsNil of ty * term
+  | TmHead of ty * term
+  | TmTail of ty * term
   | TmTuple of term list
   | TmProj of int * term
   | TmRecord of (string * term) list

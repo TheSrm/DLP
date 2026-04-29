@@ -13,7 +13,7 @@
 
 * [X] Apartado de tuplas 
 
-* [] Listas (en proceso)
+* [X] Listas
 
 * [] Variantes
 

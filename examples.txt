@@ -90,3 +90,10 @@ p.na
 p.na.1
 p.na.2
 p.e
+
+nil[Nat]
+cons[Nat] 8 (cons[Nat] 3 (nil[Nat]))
+isnil[Nat] (nil[Nat])
+isnil[Nat] (cons[Nat] 5 (nil[Nat]))
+head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])))
+tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])))

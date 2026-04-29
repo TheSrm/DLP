@@ -21,11 +21,19 @@ rule token = parse
   | "Bool"      { BOOL }
   | "Nat"       { NAT }
   | "String"    { STRING }
+  | "List"      { LIST }
   | "Exit"      { QUIT }
   | "fix"       { FIX }
   | "length"    { LENGTH }
+  | "nil"       { NIL }
+  | "cons"      { CONS }
+  | "isnil"     { ISNIL }
+  | "head"      { HEAD }
+  | "tail"      { TAIL }
   | '('         { LPAREN }
   | ')'         { RPAREN }
+  | '['         { LBRACKET }
+  | ']'         { RBRACKET }
   | '{'         { LBRACE }
   | '}'         { RBRACE }
   | ','         { COMMA }
