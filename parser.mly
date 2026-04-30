@@ -108,12 +108,8 @@ projTerm :
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
-  | LBRACE recordTerms RBRACE
-      { TmRecord $2 }
-  | LBRACE tupleTerms RBRACE
-      { TmTuple $2 }
-  | LBRACE term RBRACE
-      { TmTuple [$2] }
+  | LBRACE bracedTerm RBRACE
+      { $2 }
   | TRUE
       { TmTrue }
   | FALSE
@@ -131,12 +127,16 @@ atomicTerm :
         in f $1 }
 
 ty :
+    prefixTy
+      { $1 }
+  | prefixTy ARROW ty
+      { TyArr ($1, $3) }
+
+prefixTy :
     atomicTy
       { $1 }
-  | LIST atomicTy
+  | LIST prefixTy
       { TyList $2 }
-  | atomicTy ARROW ty
-      { TyArr ($1, $3) }
 
 atomicTy :
     LPAREN ty RPAREN
@@ -157,10 +157,16 @@ atomicTy :
       { TyAlias $1 }
 
 tupleTerms :
-    term COMMA term
-      { [$1; $3] }
+    term
+      { [$1] }
   | term COMMA tupleTerms
       { $1 :: $3 }
+
+bracedTerm :
+    recordTerms
+      { TmRecord $1 }
+  | tupleTerms
+      { TmTuple $1 }
 
 recordTerms :
     IDV EQ term
