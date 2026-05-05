@@ -11,7 +11,6 @@ The current version of our interpreter implements the following extensions from 
 - A global functional context for term bindings.
 - Global type aliases.
 - Support for the `String` type, string literals, concatenation, and a `length` operator.
-- Support for lists with the constructors and observers requested in the assignment.
 - Support for tuples and positional projection.
 - Support for records and label-based projection.
 
@@ -267,85 +266,76 @@ Evaluation rules:
 - Tuple components are evaluated from left to right.
 - A projection over a fully evaluated tuple returns the selected component.
 
-### 2.8. Lists
-
-The interpreter supports finite homogeneous lists. The empty list is annotated with the element type, and list constructors and observers are written explicitly.
-
-Function types over lists can be written directly without extra parentheses. For example, `List Nat -> Nat` is accepted as expected.
-
-Examples:
-
+### 2.9. Variants and case
+ 
+The interpreter supports variant types, which represent values that can take one of several labelled forms. This is useful for defining types with multiple cases, such as a representation of integers with positive, zero, and negative values.
+ 
+Variant type syntax:
+ 
 ```text
->> nil[Nat];;
-- : List Nat = nil[Nat]
->> cons[Nat] 8 (cons[Nat] 3 (nil[Nat]));;
-- : List Nat = cons[Nat] 8 (cons[Nat] 3 (nil[Nat]))
->> isnil[Nat] (nil[Nat]);;
-- : Bool = true
->> isnil[Nat] (cons[Nat] 5 (nil[Nat]));;
-- : Bool = false
->> head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
-- : Nat = 8
->> tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
-- : List Nat = cons[Nat] 3 (nil[Nat])
+<label1 : T1, label2 : T2, ...>
 ```
-
+ 
+Variant value syntax:
+ 
+```text
+<label = term> as VariantType
+```
+ 
+Pattern matching syntax:
+ 
+```text
+case term of
+  <label1 = x1> => body1
+| <label2 = x2> => body2
+| ...
+```
+ 
+Each branch binds a variable (here `x1`, `x2`...) to the inner value carried by that label.
+ 
 Typing rules:
+ 
+- `<label = t> as <l1:T1,...,ln:Tn>` is well typed if `label` appears in the variant type and `t` has the corresponding type `Ti`.
+- `case t of <l1=x1> => b1 | ... | <ln=xn> => bn` is well typed if `t` has variant type `<l1:T1,...,ln:Tn>`, the branch labels match the variant labels exactly, each `xi` is bound with type `Ti` in branch `bi`, and all branches have the same result type.
 
-- `nil[T]` has type `List T`.
-- `cons[T] t1 t2` requires `t1` to have type `T` and `t2` to have type `List T`.
-- `isnil[T] t` requires `t` to have type `List T` and returns `Bool`.
-- `head[T] t` requires `t` to have type `List T` and returns `T`.
-- `tail[T] t` requires `t` to have type `List T` and returns `List T`.
-
-Evaluation rules:
-
-- The arguments of `cons` are evaluated from left to right.
-- `isnil[T] (nil[T])` reduces to `true`.
-- `isnil[T] (cons[T] v1 v2)` reduces to `false` when both arguments are values.
-- `head[T] (cons[T] v1 v2)` reduces to `v1`.
-- `tail[T] (cons[T] v1 v2)` reduces to `v2`.
-
-The assignment also requested recursive examples over lists. The following terms are included as representative examples:
-
-List length:
-
+Example — integer addition using variants:
+ 
+The following defines `add : Int -> Int -> Int` using a helper `sub : Nat -> Nat -> Int` that subtracts two natural numbers and returns an `Int`:
+ 
 ```text
-letrec sum: Nat -> Nat -> Nat =
-  lambda n: Nat. lambda m: Nat.
-    if iszero n then m
-    else succ (sum (pred n) m)
+letrec sum : Nat -> Nat -> Nat =
+  lambda n : Nat. lambda m : Nat.
+    if iszero n then m else succ (sum (pred n) m)
 in
-letrec length_list: List Nat -> Nat =
-  lambda xs: List Nat.
-    if isnil[Nat] xs then 0
-    else sum 1 (length_list (tail[Nat] xs))
+letrec sub : Nat -> Nat -> Int =
+  lambda n : Nat. lambda m : Nat.
+    if iszero m then (<pos=n> as Int)
+    else if iszero n then (<neg=m> as Int)
+    else sub (pred n) (pred m)
 in
-  length_list (cons[Nat] 8 (cons[Nat] 3 (cons[Nat] 1 (nil[Nat]))));;
+letrec add : Int -> Int -> Int =
+  lambda a : Int. lambda b : Int.
+    case a of
+      <pos=p> => (
+        case b of
+          <pos=q>  => (<pos = sum p q> as Int)
+        | <zero=z> => (<pos=p> as Int)
+        | <neg=q>  => sub p q
+      )
+    | <zero=z> => b
+    | <neg=n> => (
+        case b of
+          <neg=q>  => (<neg = sum n q> as Int)
+        | <zero=z> => (<neg=n> as Int)
+        | <pos=q>  => sub q n
+      )
+in
+add (<pos=5> as Int) (<neg=3> as Int);;
 ```
+ 
+Expected output: `- : <pos : Nat, zero : Bool, neg : Nat> = <pos = 2>`
 
-Append:
 
-```text
-letrec append: List Nat -> List Nat -> List Nat =
-  lambda xs: List Nat. lambda ys: List Nat.
-    if isnil[Nat] xs then ys
-    else cons[Nat] (head[Nat] xs) (append (tail[Nat] xs) ys)
-in
-  append (cons[Nat] 1 (cons[Nat] 2 (nil[Nat])))
-         (cons[Nat] 3 (cons[Nat] 4 (nil[Nat])));;
-```
-
-Map:
-
-```text
-letrec map_succ: List Nat -> List Nat =
-  lambda xs: List Nat.
-    if isnil[Nat] xs then nil[Nat]
-    else cons[Nat] (succ (head[Nat] xs)) (map_succ (tail[Nat] xs))
-in
-  map_succ (cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (nil[Nat]))));;
-```
 
 ## 3. Technical Notes
 
@@ -377,23 +367,14 @@ These files contain most of the semantic changes.
 New types and terms were added to the abstract syntax:
 
 - `TyString`
-- `TyList of ty`
 - `TyTuple of ty list`
-- `TyRecord of (string * ty) list`
 - `TyAlias of string`
 - `TmFix`
 - `TmString`
 - `TmConcat`
 - `TmLength`
-- `TmNil of ty`
-- `TmCons of ty * term * term`
-- `TmIsNil of ty * term`
-- `TmHead of ty * term`
-- `TmTail of ty * term`
 - `TmTuple of term list`
 - `TmProj of int * term`
-- `TmRecord of (string * term) list`
-- `TmRecordProj of string * term`
 
 The command language was also extended with:
 
@@ -410,19 +391,18 @@ Several groups of functions were extended accordingly.
 Typing:
 
 - `resolve_ty` resolves type aliases recursively and detects cyclic aliases.
-- `typeof` was extended with typing rules for recursion, strings, lists, tuples, records, projections, and context lookups.
+- `typeof` was extended with typing rules for recursion, strings, tuples, projections, and context lookups.
 
 Evaluation:
 
 - `subst` and `free_vars` were extended so that all new term forms are handled correctly.
-- `isval` now recognizes strings, lists, tuples, and records of values.
-- `eval1` includes reduction rules for `fix`, `concat`, `length`, lists, tuples, record projection, and global variables.
+- `isval` now recognizes strings and tuples of values.
+- `eval1` includes reduction rules for `fix`, `concat`, `length`, tuples, projection, and global variables.
 - `eval` applies small-step evaluation repeatedly and then replaces remaining free variables using the global context.
 
 Printing:
 
 - `string_of_ty` and `string_of_term` were extended to print the new constructs.
-- A pretty printer based on `Format` was added to reduce unnecessary parentheses and improve readability.
 
 Command execution:
 
@@ -438,13 +418,9 @@ The parser was extended to recognize:
 - `fix`.
 - String literals and the `String` type.
 - `concat` and `length`.
-- List expressions and list types.
 - Tuple expressions.
 - Tuple types.
-- Positional projection with `.1`, `.2`, etc.
-- Records and label-based projection.
-
-For convenience, the grammar of types was also adjusted so that list types can appear directly on the left-hand side of an arrow. This means expressions such as `List Nat -> Nat` are accepted without requiring parentheses like `(List Nat) -> Nat`.
+- Positional projection with `proj`.
 
 An important design decision is that `letrec` is not evaluated by a special runtime rule. Instead, it is translated directly by the parser into:
 
@@ -463,12 +439,7 @@ The lexer was updated with the new reserved words and symbols required by the ex
 - `String`
 - `concat`
 - `length`
-- `List`
-- `nil`
-- `cons`
-- `isnil`
-- `head`
-- `tail`
+- `proj`
 - `{`, `}`, and `,`
 - string literals
 
@@ -487,7 +458,8 @@ The most relevant implementation decisions were the following:
 - Recursive definitions were implemented by translating `letrec` into `fix`, instead of duplicating recursion logic in the evaluator.
 - The global context was implemented as a functional list of bindings, where new definitions shadow older ones.
 - Type aliases are resolved explicitly with cycle detection.
-- Lists were implemented directly in the abstract syntax, without relying on OCaml lists as runtime values of the interpreted language.
 - Tuples were implemented using OCaml lists inside the abstract syntax tree, but only as an internal representation of tuple components, not as a replacement for lambda-calculus lists.
+- Variants follow the same structural pattern as records.
+- The caseBranch grammar rule uses appTerm as its body to avoid a shift/reduce conflict with the | separator.
 
 These decisions keep the implementation relatively small while still covering the requested extensions in a clear way.

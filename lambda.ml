@@ -8,6 +8,7 @@ type ty =
   | TyList of ty
   | TyTuple of ty list
   | TyRecord of (string * ty) list
+  | TyVariant of (string * ty) list
   | TyArr of ty * ty
   | TyAlias of string
 ;;
@@ -38,6 +39,8 @@ type term =
   | TmProj of int * term
   | TmRecord of (string * term) list
   | TmRecordProj of string * term
+  | TmVariant of string * term * ty
+  | TmCase of term * (string * string * term) list
 ;;
 
 
@@ -48,12 +51,12 @@ type command =
   | Quit 
 ;;
 
-type biding =
+type binding =
     TyBind of ty
   | TyTmBind of (ty * term);;
 
 type context =
-  (string * biding) list
+  (string * binding) list
 ;;
 
 exception Type_error of string
@@ -106,6 +109,9 @@ let rec string_of_ty ty = match ty with
   | TyRecord fields ->
       "{" ^ String.concat ", "
         (List.map (fun (label, field_ty) -> label ^ " : " ^ string_of_ty field_ty) fields) ^ "}"
+  | TyVariant cases ->
+      "<" ^ String.concat ", "
+        (List.map (fun (label, case_ty) -> label ^ " : " ^ string_of_ty case_ty) cases) ^ ">"
   | TyArr (ty1, ty2) ->
       "(" ^ string_of_ty ty1 ^ ")" ^ " -> " ^ "(" ^ string_of_ty ty2 ^ ")"
   | TyAlias x ->
@@ -126,6 +132,8 @@ let resolve_ty ctx ty =
         TyTuple (List.map (aux visited) tys)
     | TyRecord fields ->
         TyRecord (List.map (fun (label, field_ty) -> (label, aux visited field_ty)) fields)
+    | TyVariant cases ->
+        TyVariant (List.map (fun (label, case_ty) -> (label, aux visited case_ty)) cases)
     | TyArr (ty1, ty2) ->
         TyArr (aux visited ty1, aux visited ty2)
     | TyAlias name ->
@@ -262,8 +270,10 @@ let rec typeof ctx tm = match tm with
              else
                List.nth tys (index - 1)
          | _ -> raise (Type_error "tuple type expected in projection"))
+
   | TmRecord fields ->
       TyRecord (List.map (fun (label, term) -> (label, resolve_ty ctx (typeof ctx term))) fields)
+
   | TmRecordProj (label, term) ->
       (match resolve_ty ctx (typeof ctx term) with
            TyRecord fields ->
@@ -271,6 +281,51 @@ let rec typeof ctx tm = match tm with
                   Some ty -> ty
                 | None -> raise (Type_error ("unknown record label " ^ label)))
          | _ -> raise (Type_error "record type expected in projection"))
+
+  | TmVariant (label, t, ty) ->
+      let ty' = resolve_ty ctx ty in
+      (match ty' with
+           TyVariant cases ->
+             (match List.assoc_opt label cases with
+                  Some label_ty ->
+                    let t_ty = resolve_ty ctx (typeof ctx t) in
+                    if t_ty = label_ty then ty'
+                    else raise (Type_error
+                      ("variant field " ^ label ^ " has wrong type"))
+                | None ->
+                    raise (Type_error
+                      ("label " ^ label ^ " not found in variant type")))
+         | _ ->
+             raise (Type_error "variant type expected in variant construction"))
+
+  | TmCase (t, branches) ->
+      let variant_ty = resolve_ty ctx (typeof ctx t) in
+      (match variant_ty with
+           TyVariant cases ->
+             (* Check that the set of branch labels matches the variant labels exactly *)
+             let branch_labels = List.map (fun (l, _, _) -> l) branches in
+             let case_labels   = List.map fst cases in
+             if List.sort compare branch_labels <> List.sort compare case_labels then
+               raise (Type_error "case branches do not match variant labels");
+             (* Type each branch *)
+             let branch_types = List.map (fun (label, x, body) ->
+               let label_ty =
+                 match List.assoc_opt label cases with
+                   Some ty -> ty
+                 | None ->
+                     raise (Type_error ("unexpected label " ^ label ^ " in case"))
+               in
+               let ctx' = addtbinding ctx x label_ty in
+               resolve_ty ctx' (typeof ctx' body)
+             ) branches in
+             (* All branches must have the same type *)
+             (match branch_types with
+                  [] -> raise (Type_error "empty case expression")
+                | first :: rest ->
+                    if List.for_all (fun ty -> ty = first) rest then first
+                    else raise (Type_error "case branches have different types"))
+         | _ ->
+             raise (Type_error "variant type expected in case expression"))
 ;;
 
 
@@ -332,6 +387,13 @@ let rec string_of_term = function
         (List.map (fun (label, term) -> label ^ " = " ^ string_of_term term) fields) ^ "}"
   | TmRecordProj (label, term) ->
       "(" ^ string_of_term term ^ ")." ^ label
+  | TmVariant (label, t, _ty) ->
+      "<" ^ label ^ " = " ^ string_of_term t ^ ">"
+  | TmCase (t, branches) ->
+      "case " ^ string_of_term t ^ " of " ^
+      String.concat " | "
+        (List.map (fun (label, x, body) ->
+          "<" ^ label ^ "=" ^ x ^ "> => " ^ string_of_term body) branches)
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -373,6 +435,11 @@ let rec free_vars tm = match tm with
   | TmRecord fields ->
       List.fold_left (fun vars (_, term) -> lunion vars (free_vars term)) [] fields
   | TmRecordProj (_, term) -> free_vars term
+  | TmVariant (_, t, _) -> free_vars t
+  | TmCase (t, branches) ->
+      List.fold_left (fun vars (_, x, body) ->
+        lunion vars (ldif (free_vars body) [x])
+      ) (free_vars t) branches
 ;;
 
 let rec fresh_name x l =
@@ -407,7 +474,7 @@ let rec subst x s tm = match tm with
            else let z = fresh_name y (free_vars t2 @ fvs) in
                 TmLetIn (z, subst x s t1, subst x s (subst y (TmVar z) t2))
   | TmFix t -> TmFix (subst x s t)
-  | TmString s -> TmString s
+  | TmString str -> TmString str
   | TmConcat (t1, t2) -> TmConcat (subst x s t1, subst x s t2)
   | TmLength t -> TmLength (subst x s t)
   | TmNil ty -> TmNil ty
@@ -421,6 +488,18 @@ let rec subst x s tm = match tm with
       TmRecord (List.map (fun (label, term) -> (label, subst x s term)) fields)
   | TmRecordProj (label, term) ->
       TmRecordProj (label, subst x s term)
+  | TmVariant (label, t, ty) ->
+      TmVariant (label, subst x s t, ty)
+  | TmCase (t, branches) ->
+      TmCase (subst x s t,
+        List.map (fun (label, y, body) ->
+          if y = x then (label, y, body)
+          else let fvs = free_vars s in
+               if not (List.mem y fvs)
+               then (label, y, subst x s body)
+               else let z = fresh_name y (free_vars body @ fvs) in
+                    (label, z, subst x s (subst y (TmVar z) body))
+        ) branches)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -438,6 +517,7 @@ let rec isval tm = match tm with
   | TmCons (_, t1, t2) -> isval t1 && isval t2
   | TmTuple terms -> List.for_all isval terms
   | TmRecord fields -> List.for_all (fun (_, term) -> isval term) fields
+  | TmVariant (_, t, _) -> isval t
   | t when isnumericval t -> true
   | _ -> false
 ;;
@@ -562,6 +642,15 @@ let rec eval1 ctx tm = match tm with
   | TmRecordProj (label, term) ->
       let term' = eval1 ctx term in
       TmRecordProj (label, term')
+  | TmVariant (label, t, ty) when not (isval t) ->
+      TmVariant (label, eval1 ctx t, ty)
+  | TmCase (TmVariant (label, v, _), branches) when isval v ->
+      (match List.find_opt (fun (l, _, _) -> l = label) branches with
+           Some (_, x, body) -> subst x v body
+         | None -> raise NoRuleApplies)
+  | TmCase (t, branches) ->
+      let t' = eval1 ctx t in
+      TmCase (t', branches)
   | TmVar x ->
       getvbinding ctx x
   | _ ->
@@ -621,7 +710,7 @@ let rec print_ty ty = match ty with
            print_ty ty1);
       print_string " -> ";
       print_ty ty2
- | TyTuple tys ->
+  | TyTuple tys ->
       open_box 1;
       print_string "{";
       let rec aux = function
@@ -654,6 +743,25 @@ let rec print_ty ty = match ty with
       in aux fields;
       print_string "}";
       close_box ()
+  | TyVariant cases ->
+      open_box 1;
+      print_string "<";
+      let rec aux = function
+          [] -> ()
+        | [(label, case_ty)] ->
+            print_string label;
+            print_string " : ";
+            print_ty case_ty
+        | (label, case_ty) :: rest ->
+            print_string label;
+            print_string " : ";
+            print_ty case_ty;
+            print_string ",";
+            print_space ();
+            aux rest
+      in aux cases;
+      print_string ">";
+      close_box ()
   | TyBool    -> print_string "Bool"
   | TyNat     -> print_string "Nat"
   | TyString  -> print_string "String"
@@ -669,7 +777,7 @@ let rec print_ty ty = match ty with
   | TyAlias x -> print_string x
 ;;
 
-(* print_term handles the top level: if/then/else, lambda, let, letrec.
+(* print_term handles the top level: if/then/else, lambda, let, letrec, case.
    Anything it does not recognise is delegated to print_appTerm. *)
 let rec print_term tm = match tm with
     TmIf (t1, t2, t3) ->
@@ -704,6 +812,24 @@ let rec print_term tm = match tm with
       print_term t1;
       print_string " in ";
       print_term t2;
+      close_box ()
+  | TmCase (t, branches) ->
+      open_hovbox 0;
+      print_string "case ";
+      print_term t;
+      print_string " of";
+      print_space ();
+      let rec aux = function
+          [] -> ()
+        | [(label, x, body)] ->
+            print_string ("<" ^ label ^ "=" ^ x ^ "> => ");
+            print_term body
+        | (label, x, body) :: rest ->
+            print_string ("<" ^ label ^ "=" ^ x ^ "> => ");
+            print_term body;
+            print_string " | ";
+            aux rest
+      in aux branches;
       close_box ()
   | _ ->
       print_appTerm tm
@@ -803,7 +929,7 @@ and print_projTerm tm = match tm with
   | _ ->
       print_atomicTerm tm
 
-(* print_atomicTerm handles literals, variables and tuples.
+(* print_atomicTerm handles literals, variables, tuples, records, and variants.
    Any term that belongs to a higher level is wrapped in parentheses. *)
 and print_atomicTerm tm = match tm with
     TmTrue     -> print_string "true"
@@ -856,6 +982,12 @@ and print_atomicTerm tm = match tm with
             aux rest
       in aux fields;
       print_string "}";
+      close_box ()
+  | TmVariant (label, t, _ty) ->
+      open_box 1;
+      print_string ("<" ^ label ^ " = ");
+      print_term t;
+      print_string ">";
       close_box ()
   | _ ->
       open_box 1;

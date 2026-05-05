@@ -27,22 +27,32 @@
 %token ISNIL
 %token HEAD
 %token TAIL
+%token CASE
+%token OF
+%token AS
 %token LPAREN
 %token RPAREN
 %token LBRACKET
 %token RBRACKET
 %token LBRACE
 %token RBRACE
+%token LANGLE
+%token RANGLE
+%token PIPE
 %token COMMA
 %token DOT
 %token EQ
 %token COLON
 %token ARROW
+%token FATARROW
 %token EOF
 %token <int> INTV
 %token <string> IDV
 %token <string> IDT
 %token <string> STRINGV
+
+%nonassoc FATARROW
+%left PIPE
 
 %start input
 %type <Lambda.command> input
@@ -70,6 +80,8 @@ term :
       { TmLetIn ($2, $4, $6) }
   | LETREC IDV COLON ty EQ term IN term
       { TmLetIn ($2, TmFix (TmAbs ($2, $4, $6)), $8) }
+  | CASE term OF caseBranches
+      { TmCase ($2, $4) }
 
 appTerm :
     projTerm
@@ -108,8 +120,14 @@ projTerm :
 atomicTerm :
     LPAREN term RPAREN
       { $2 }
-  | LBRACE bracedTerm RBRACE
-      { $2 }
+  | LBRACE recordTerms RBRACE
+      { TmRecord $2 }
+  | LBRACE tupleTerms RBRACE
+      { TmTuple $2 }
+  | LBRACE term RBRACE
+      { TmTuple [$2] }
+  | LANGLE IDV EQ term RANGLE AS ty
+      { TmVariant ($2, $4, $7) }
   | TRUE
       { TmTrue }
   | FALSE
@@ -127,16 +145,12 @@ atomicTerm :
         in f $1 }
 
 ty :
-    prefixTy
-      { $1 }
-  | prefixTy ARROW ty
-      { TyArr ($1, $3) }
-
-prefixTy :
     atomicTy
       { $1 }
-  | LIST prefixTy
+  | LIST atomicTy
       { TyList $2 }
+  | atomicTy ARROW ty
+      { TyArr ($1, $3) }
 
 atomicTy :
     LPAREN ty RPAREN
@@ -147,6 +161,8 @@ atomicTy :
       { TyTuple $2 }
   | LBRACE ty RBRACE
       { TyTuple [$2] }
+  | LANGLE variantTypes RANGLE
+      { TyVariant $2 }
   | BOOL
       { TyBool }
   | NAT
@@ -157,16 +173,10 @@ atomicTy :
       { TyAlias $1 }
 
 tupleTerms :
-    term
-      { [$1] }
+    term COMMA term
+      { [$1; $3] }
   | term COMMA tupleTerms
       { $1 :: $3 }
-
-bracedTerm :
-    recordTerms
-      { TmRecord $1 }
-  | tupleTerms
-      { TmTuple $1 }
 
 recordTerms :
     IDV EQ term
@@ -185,3 +195,19 @@ recordTypes :
       { [($1, $3)] }
   | IDV COLON ty COMMA recordTypes
       { ($1, $3) :: $5 }
+
+variantTypes :
+    IDV COLON ty
+      { [($1, $3)] }
+  | IDV COLON ty COMMA variantTypes
+      { ($1, $3) :: $5 }
+
+caseBranches :
+    caseBranch
+      { [$1] }
+  | caseBranch PIPE caseBranches
+      { $1 :: $3 }
+
+caseBranch :
+    LANGLE IDV EQ IDV RANGLE FATARROW appTerm
+      { ($2, $4, $7) }

@@ -1,4 +1,3 @@
-
 type ty =
     TyBool
   | TyNat
@@ -6,11 +5,10 @@ type ty =
   | TyList of ty
   | TyTuple of ty list
   | TyRecord of (string * ty) list
+  | TyVariant of (string * ty) list
   | TyArr of ty * ty
   | TyAlias of string
 ;;
-
-
 
 type term =
     TmTrue
@@ -37,6 +35,8 @@ type term =
   | TmProj of int * term
   | TmRecord of (string * term) list
   | TmRecordProj of string * term
+  | TmVariant of string * term * ty
+  | TmCase of term * (string * string * term) list
 ;;
 
 type command =
@@ -46,12 +46,12 @@ type command =
   | Quit 
 ;;
 
-type biding =
+type binding =
     TyBind of ty
   | TyTmBind of (ty * term);;
 
 type context =
-  (string * biding) list
+  (string * binding) list
 ;;
 
 

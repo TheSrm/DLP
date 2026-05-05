@@ -30,17 +30,24 @@ rule token = parse
   | "isnil"     { ISNIL }
   | "head"      { HEAD }
   | "tail"      { TAIL }
+  | "case"      { CASE }
+  | "of"        { OF }
+  | "as"        { AS }
   | '('         { LPAREN }
   | ')'         { RPAREN }
   | '['         { LBRACKET }
   | ']'         { RBRACKET }
   | '{'         { LBRACE }
   | '}'         { RBRACE }
+  | '<'         { LANGLE }
+  | '>'         { RANGLE }
+  | '|'         { PIPE }
   | ','         { COMMA }
   | '.'         { DOT }
   | '='         { EQ }
   | ':'         { COLON }
   | "->"        { ARROW }
+  | "=>"        { FATARROW }
   | "concat"    { CONCAT }
   | ['0'-'9']+  { INTV (int_of_string (Lexing.lexeme lexbuf)) }
   | ['A'-'Z']['A'-'Z' 'a'-'z' '_' '0'-'9']*
