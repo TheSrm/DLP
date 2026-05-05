@@ -1,23 +1,23 @@
-true
-let x = true in x
-if false then true else false
-0
-succ (succ (succ 0))
-3
-succ (pred 0)
-iszero (pred (succ (succ 0)))
-if iszero 3 then 0 else 1
-iszero true
-if 1 then true else false
-if iszero 3 then 0 else false
-let id = Lx.x in id 3
-let id_bool = L x:Bool. x in id_bool true
-let id_nat = L x:Nat. x in id_nat 5
-let x = 5 in let id_nat = L x:Nat. x in id_nat x
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in sum 21 34
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in let prodaux = lambda f. (lambda n. (lambda m. if (iszero m) then 0 else sum n (f n (pred m)))) in let prod = fix prodaux in prod 12 5
+true;;
+let x = true in x;;
+if false then true else false;;
+0;;
+succ (succ (succ 0));;
+3;;
+succ (pred 0);;
+iszero (pred (succ (succ 0)));;
+if iszero 3 then 0 else 1;;
+iszero true;;
+if 1 then true else false;;
+if iszero 3 then 0 else false;;
+let id = Lx.x in id 3;;
+let id_bool = L x:Bool. x in id_bool true;;
+let id_nat = L x:Nat. x in id_nat 5;;
+let x = 5 in let id_nat = L x:Nat. x in id_nat x;;
+let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in sum 21 34;;
+let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in let prodaux = lambda f. (lambda n. (lambda m. if (iszero m) then 0 else sum n (f n (pred m)))) in let prod = fix prodaux in prod 12 5;;
 
-%Ejemplos propuestos por los alumnos 
+% Additional examples proposed by the students
 
 % Fibonacci
 
@@ -36,7 +36,7 @@ in
 ;;
 
 
-% Producto
+% Product
 
 letrec sum: Nat -> Nat -> Nat =
   lambda n: Nat. lambda m: Nat.
@@ -52,7 +52,7 @@ in
 ;;
 
 
-%Factorial 
+% Factorial
 
 letrec sum: Nat -> Nat -> Nat =
   lambda n: Nat. lambda m: Nat.
@@ -72,31 +72,31 @@ in
   fact 5
 ;;
 
-% Tuplas
+% Tuples
 
-{true, 0}
- {true, 0}.1
- {true, 0, "hola"}.2
+{true, 0};;
+{true, 0}.1;;
+{true, 0, "hola"}.2;;
 
-% Registros
+% Records
 
-{x = true, y = 0}
-{x = true, y = 0}.x
-lambda r:{x:Bool, y:Nat}. r.y
-{x = 2, y = 5, z = 0}
-{x = 2, y = 5, z = 0}.x
-p = {na = {"luis", "vida1"}, e = 28}
-p.na
-p.na.1
-p.na.2
-p.e
+{x = true, y = 0};;
+{x = true, y = 0}.x;;
+lambda r:{x:Bool, y:Nat}. r.y;;
+{x = 2, y = 5, z = 0};;
+{x = 2, y = 5, z = 0}.x;;
+p = {na = {"luis", "vida1"}, e = 28};;
+p.na;;
+p.na.1;;
+p.na.2;;
+p.e;;
 
-nil[Nat]
-cons[Nat] 8 (cons[Nat] 3 (nil[Nat]))
-isnil[Nat] (nil[Nat])
-isnil[Nat] (cons[Nat] 5 (nil[Nat]))
-head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])))
-tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])))
+nil[Nat];;
+cons[Nat] 8 (cons[Nat] 3 (nil[Nat]));;
+isnil[Nat] (nil[Nat]);;
+isnil[Nat] (cons[Nat] 5 (nil[Nat]));;
+head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
+tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
 
 % Variants
 

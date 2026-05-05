@@ -160,7 +160,7 @@ Example:
 >> x = true;;
 x : Bool = true
 >> id = lambda x:Bool. x;;
-id : (Bool) -> (Bool) = (lambda x:Bool. x)
+id : Bool -> Bool = lambda x:Bool.x
 >> id x;;
 - : Bool = true
 ```
@@ -175,9 +175,9 @@ Example:
 
 ```text
 >> N = Nat;;
-N = Nat
+type N = Nat
 >> lambda x:N. x;;
-- : (Nat) -> (Nat) = (lambda x:N. x)
+- : Nat -> Nat = lambda x:N.x
 ```
 
 The context is functional, not imperative. Technically, it is represented as a list of bindings where each new definition is added to the front. Lookups always return the most recent binding, while older bindings remain in the context. This design matches the style of a lambda calculus interpreter and avoids destructive updates.
@@ -286,9 +286,9 @@ Pattern matching syntax:
  
 ```text
 case term of
-  <label1 = x1> => body1
-| <label2 = x2> => body2
-| ...
+  | <label1 = x1> => body1
+  | <label2 = x2> => body2
+  | ...
 ```
  
 Each branch binds a variable (here `x1`, `x2`...) to the inner value carried by that label.
@@ -333,7 +333,37 @@ in
 add (<pos=5> as Int) (<neg=3> as Int);;
 ```
  
-Expected output: `- : <pos : Nat, zero : Bool, neg : Nat> = <pos = 2>`
+Expected output: `- : <pos : Nat, zero : Bool, neg : Nat> = <pos = 2> as Int`
+
+Interactive example:
+
+```text
+>> Int = <pos:Nat, zero:Bool, neg:Nat>;;
+type Int = <pos : Nat, zero : Bool, neg : Nat>
+>> p3 = <pos=3> as Int;;
+p3 : <pos : Nat, zero : Bool, neg : Nat> = <pos = 3> as Int
+>> z0 = <zero=true> as Int;;
+z0 : <pos : Nat, zero : Bool, neg : Nat> = <zero = true> as Int
+>> n5 = <neg=5> as Int;;
+n5 : <pos : Nat, zero : Bool, neg : Nat> = <neg = 5> as Int
+>> abs = L i : Int.
+case i of
+  <pos=p> => (<pos=p> as Int)
+| <zero=z> => (<zero=true> as Int)
+| <neg=n> => (<pos=n> as Int);;
+abs : <pos : Nat, zero : Bool, neg : Nat> -> <pos : Nat, zero : Bool, neg : Nat> =
+lambda i:Int.
+  case i of
+    | <pos=p> => <pos = p> as Int
+    | <zero=z> => <zero = true> as Int
+    | <neg=n> => <pos = n> as Int
+>> abs p3;;
+- : <pos : Nat, zero : Bool, neg : Nat> = <pos = 3> as Int
+>> abs z0;;
+- : <pos : Nat, zero : Bool, neg : Nat> = <zero = true> as Int
+>> abs n5;;
+- : <pos : Nat, zero : Bool, neg : Nat> = <pos = 5> as Int
+```
 
 
 
