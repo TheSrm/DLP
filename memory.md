@@ -13,6 +13,8 @@ The current version of our interpreter implements the following extensions from 
 - Support for the `String` type, string literals, concatenation, and a `length` operator.
 - Support for tuples and positional projection.
 - Support for records and label-based projection.
+- Support for homogeneous lists with `nil`, `cons`, `isnil`, `head`, and `tail`.
+- Support for variants and pattern matching through `case`.
 
 This report is divided into two parts, as requested in the assignment:
 
@@ -249,22 +251,88 @@ p : {na : {String, String}, e : Nat} = {na = {"luis", "vida1"}, e = 28}
 - : Nat = 28
 ```
 
-Typing rules:
-
-- `{l1 = t1, ..., ln = tn}` has type `{l1 : T1, ..., ln : Tn}` if each `ti` has type `Ti`.
-- `t.l` requires `t` to have a record type containing the label `l`.
-
 Operationally, records evaluate their fields from left to right until all fields are values, and projection returns the value associated with the selected label.
 
+
+
+### 2.8. Lists
+
+The interpreter supports homogeneous lists through the type constructor `List T` and the terms `nil[T]`, `cons[T]`, `isnil[T]`, `head[T]`, and `tail[T]`.
+
+Examples:
+
+```text
+>> nil[Nat];;
+- : List Nat = nil[Nat]
+>> cons[Nat] 8 (cons[Nat] 3 (nil[Nat]));;
+- : List Nat = cons[Nat] 8 (cons[Nat] 3 (nil[Nat]))
+>> isnil[Nat] (nil[Nat]);;
+- : Bool = true
+>> head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
+- : Nat = 8
+>> tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
+- : List Nat = cons[Nat] 3 (nil[Nat])
+```
+
 Typing rules:
 
-- A tuple `{t1, ..., tn}` has type `{T1, ..., Tn}` if each component `ti` has type `Ti`.
-- `proj i t` is well typed only if `t` has tuple type and `i` is within bounds.
+- `nil[T]` has type `List T`.
+- `cons[T] t1 t2` requires `t1 : T` and `t2 : List T`, and returns `List T`.
+- `isnil[T] t` requires `t : List T` and returns `Bool`.
+- `head[T] t` requires `t : List T` and returns `T`.
+- `tail[T] t` requires `t : List T` and returns `List T`.
 
-Evaluation rules:
+The assignment requested three recursive examples over lists. The following terms are included both in `examples.txt` and in this report. In the first example we use the name `len` instead of `length`, because `length` is already a reserved operator for strings in this interpreter.
 
-- Tuple components are evaluated from left to right.
-- A projection over a fully evaluated tuple returns the selected component.
+Length:
+
+```text
+letrec sum : Nat -> Nat -> Nat =
+  lambda n : Nat. lambda m : Nat.
+    if iszero n then m
+    else succ (sum (pred n) m)
+in
+letrec len : (List Nat) -> Nat =
+  lambda xs : List Nat.
+    if isnil[Nat] xs then 0
+    else sum 1 (len (tail[Nat] xs))
+in
+len (cons[Nat] 8 (cons[Nat] 3 (cons[Nat] 5 (nil[Nat]))));;
+```
+
+Expected output: `- : Nat = 3`
+
+Append:
+
+```text
+letrec append : (List Nat) -> (List Nat) -> List Nat =
+  lambda xs : List Nat. lambda ys : List Nat.
+    if isnil[Nat] xs then ys
+    else cons[Nat] (head[Nat] xs) (append (tail[Nat] xs) ys)
+in
+append
+  (cons[Nat] 1 (cons[Nat] 2 (nil[Nat])))
+  (cons[Nat] 3 (cons[Nat] 4 (nil[Nat])));;
+```
+
+Expected output: `- : List Nat = cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (cons[Nat] 4 nil[Nat])))`
+
+Map:
+
+```text
+letrec map : (Nat -> Nat) -> (List Nat) -> List Nat =
+  lambda f : Nat -> Nat. lambda xs : List Nat.
+    if isnil[Nat] xs then nil[Nat]
+    else cons[Nat] (f (head[Nat] xs)) (map f (tail[Nat] xs))
+in
+map
+  (lambda x : Nat. succ x)
+  (cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (nil[Nat]))));;
+```
+
+Expected output: `- : List Nat = cons[Nat] 2 (cons[Nat] 3 (cons[Nat] 4 nil[Nat]))`
+
+Operationally, `cons` evaluates its head and tail from left to right, while `isnil`, `head`, and `tail` first evaluate their list argument and then inspect whether it is `nil` or a `cons` cell.
 
 ### 2.9. Variants and case
  
@@ -397,14 +465,24 @@ These files contain most of the semantic changes.
 New types and terms were added to the abstract syntax:
 
 - `TyString`
+- `TyList of ty`
 - `TyTuple of ty list`
 - `TyAlias of string`
 - `TmFix`
 - `TmString`
 - `TmConcat`
 - `TmLength`
+- `TmNil of ty`
+- `TmCons of ty * term * term`
+- `TmIsNil of ty * term`
+- `TmHead of ty * term`
+- `TmTail of ty * term`
 - `TmTuple of term list`
 - `TmProj of int * term`
+- `TmRecord of (string * term) list`
+- `TmRecordProj of string * term`
+- `TmVariant of string * term * ty`
+- `TmCase of term * (string * string * term) list`
 
 The command language was also extended with:
 
@@ -421,13 +499,13 @@ Several groups of functions were extended accordingly.
 Typing:
 
 - `resolve_ty` resolves type aliases recursively and detects cyclic aliases.
-- `typeof` was extended with typing rules for recursion, strings, tuples, projections, and context lookups.
+- `typeof` was extended with typing rules for recursion, strings, lists, tuples, records, variants, projections, and context lookups.
 
 Evaluation:
 
 - `subst` and `free_vars` were extended so that all new term forms are handled correctly.
-- `isval` now recognizes strings and tuples of values.
-- `eval1` includes reduction rules for `fix`, `concat`, `length`, tuples, projection, and global variables.
+- `isval` now recognizes strings, lists, tuples, records, and variants as values when their components are values.
+- `eval1` includes reduction rules for `fix`, `concat`, `length`, lists, tuples, records, variants, projection, and global variables.
 - `eval` applies small-step evaluation repeatedly and then replaces remaining free variables using the global context.
 
 Printing:
@@ -448,9 +526,12 @@ The parser was extended to recognize:
 - `fix`.
 - String literals and the `String` type.
 - `concat` and `length`.
+- `nil`, `cons`, `isnil`, `head`, and `tail`.
 - Tuple expressions.
 - Tuple types.
-- Positional projection with `proj`.
+- Record expressions and labelled projection.
+- Variant expressions and `case`.
+- Positional projection by suffix notation such as `.2`.
 
 An important design decision is that `letrec` is not evaluated by a special runtime rule. Instead, it is translated directly by the parser into:
 
@@ -469,7 +550,16 @@ The lexer was updated with the new reserved words and symbols required by the ex
 - `String`
 - `concat`
 - `length`
-- `proj`
+- `List`
+- `nil`
+- `cons`
+- `isnil`
+- `head`
+- `tail`
+- `case`
+- `of`
+- `as`
+- `<`, `>`, and `|`
 - `{`, `}`, and `,`
 - string literals
 
@@ -489,6 +579,7 @@ The most relevant implementation decisions were the following:
 - The global context was implemented as a functional list of bindings, where new definitions shadow older ones.
 - Type aliases are resolved explicitly with cycle detection.
 - Tuples were implemented using OCaml lists inside the abstract syntax tree, but only as an internal representation of tuple components, not as a replacement for lambda-calculus lists.
+- Lambda-calculus lists were implemented as explicit constructors in the abstract syntax, independently of the internal OCaml lists used by the implementation.
 - Variants follow the same structural pattern as records.
 - The caseBranch grammar rule uses appTerm as its body to avoid a shift/reduce conflict with the | separator.
 

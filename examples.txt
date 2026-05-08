@@ -10,12 +10,11 @@ if iszero 3 then 0 else 1;;
 iszero true;;
 if 1 then true else false;;
 if iszero 3 then 0 else false;;
-let id = Lx.x in id 3;;
+let id = lambda x:Nat. x in id 3;;
 let id_bool = L x:Bool. x in id_bool true;;
 let id_nat = L x:Nat. x in id_nat 5;;
 let x = 5 in let id_nat = L x:Nat. x in id_nat x;;
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in sum 21 34;;
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in let prodaux = lambda f. (lambda n. (lambda m. if (iszero m) then 0 else sum n (f n (pred m)))) in let prod = fix prodaux in prod 12 5;;
+letrec sum : Nat -> Nat -> Nat = lambda n : Nat. lambda m : Nat. if iszero n then m else succ (sum (pred n) m) in sum 21 34;;
 
 % Additional examples proposed by the students
 
@@ -97,6 +96,45 @@ isnil[Nat] (nil[Nat]);;
 isnil[Nat] (cons[Nat] 5 (nil[Nat]));;
 head[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
 tail[Nat] (cons[Nat] 8 (cons[Nat] 3 (nil[Nat])));;
+
+% length : List Nat -> Nat
+
+letrec sum : Nat -> Nat -> Nat =
+  lambda n : Nat. lambda m : Nat.
+    if iszero n then m
+    else succ (sum (pred n) m)
+in
+letrec len : (List Nat) -> Nat =
+  lambda xs : List Nat.
+    if isnil[Nat] xs then 0
+    else sum 1 (len (tail[Nat] xs))
+in
+len (cons[Nat] 8 (cons[Nat] 3 (cons[Nat] 5 (nil[Nat]))))
+;;
+
+% append : List Nat -> List Nat -> List Nat
+
+letrec append : (List Nat) -> (List Nat) -> List Nat =
+  lambda xs : List Nat. lambda ys : List Nat.
+    if isnil[Nat] xs then ys
+    else cons[Nat] (head[Nat] xs) (append (tail[Nat] xs) ys)
+in
+append
+  (cons[Nat] 1 (cons[Nat] 2 (nil[Nat])))
+  (cons[Nat] 3 (cons[Nat] 4 (nil[Nat])))
+;;
+
+% map : (Nat -> Nat) -> List Nat -> List Nat
+
+letrec map : (Nat -> Nat) -> (List Nat) -> List Nat =
+  lambda f : Nat -> Nat. lambda xs : List Nat.
+    if isnil[Nat] xs then nil[Nat]
+    else cons[Nat] (f (head[Nat] xs)) (map f (tail[Nat] xs))
+in
+map
+  (lambda x : Nat. succ x)
+  (cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (nil[Nat]))))
+;;
 
 % Variants
 
