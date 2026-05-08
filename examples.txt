@@ -186,3 +186,9 @@ letrec add : Int -> Int -> Int =
       )
 in
 add (<pos=5> as Int) (<neg=3> as Int);;
+
+% SUBTYPING
+
+(lambda r:{x:Nat, y:Bool}. r.x) {x=5, y=true, z="extra"};;
+
+(lambda f:{x:Nat, y:Bool} -> Nat. f {x=5, y=true}) (lambda r:{x:Nat}. r.x);;

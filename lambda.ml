@@ -151,6 +151,12 @@ let resolve_ty ctx ty =
 ;;
 
 (* SUBTYPING *)
+
+(* subtype ctx ty1 ty2 returns true if ty1 is a subtype of ty2.
+   S-Refl: every type is a subtype of itself.
+   S-RcdWidth + S-RcdDepth: a record with more fields is a subtype
+   of one with fewer, provided each common field type is a subtype.
+   S-Arrow: contravariant in the argument, covariant in the result. *)
 let rec subtype ctx ty1 ty2 =
   let ty1' = resolve_ty ctx ty1 in
   let ty2' = resolve_ty ctx ty2 in
@@ -321,10 +327,12 @@ let rec typeof ctx tm = match tm with
       let variant_ty = resolve_ty ctx (typeof ctx t) in
       (match variant_ty with
            TyVariant cases ->
+             (* Check that the set of branch labels matches the variant labels exactly *)
              let branch_labels = List.map (fun (l, _, _) -> l) branches in
              let case_labels   = List.map fst cases in
              if List.sort compare branch_labels <> List.sort compare case_labels then
                raise (Type_error "case branches do not match variant labels");
+             (* Type each branch *)
              let branch_types = List.map (fun (label, x, body) ->
                let label_ty =
                  match List.assoc_opt label cases with
@@ -335,6 +343,7 @@ let rec typeof ctx tm = match tm with
                let ctx' = addtbinding ctx x label_ty in
                resolve_ty ctx' (typeof ctx' body)
              ) branches in
+             (* All branches must have the same type *)
              (match branch_types with
                   [] -> raise (Type_error "empty case expression")
                 | first :: rest ->
