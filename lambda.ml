@@ -150,6 +150,23 @@ let resolve_ty ctx ty =
   aux [] ty
 ;;
 
+(* SUBTYPING *)
+let rec subtype ctx ty1 ty2 =
+  let ty1' = resolve_ty ctx ty1 in
+  let ty2' = resolve_ty ctx ty2 in
+  if ty1' = ty2' then true
+  else match ty1', ty2' with
+      TyRecord fields1, TyRecord fields2 ->
+        List.for_all (fun (label, field_ty2) ->
+          match List.assoc_opt label fields1 with
+            | Some field_ty1 -> subtype ctx field_ty1 field_ty2
+            | None -> false
+        ) fields2
+    | TyArr (tyT11, tyT12), TyArr (tyT21, tyT22) ->
+        subtype ctx tyT21 tyT11 && subtype ctx tyT12 tyT22
+    | _ -> false
+;;
+
 let rec typeof ctx tm = match tm with
     (* T-True *)
     TmTrue ->
@@ -163,7 +180,9 @@ let rec typeof ctx tm = match tm with
   | TmIf (t1, t2, t3) ->
       if resolve_ty ctx (typeof ctx t1) = TyBool then
         let tyT2 = resolve_ty ctx (typeof ctx t2) in
-        if resolve_ty ctx (typeof ctx t3) = tyT2 then tyT2
+        let tyT3 = resolve_ty ctx (typeof ctx t3) in
+        if subtype ctx tyT3 tyT2 then tyT2
+        else if subtype ctx tyT2 tyT3 then tyT3
         else raise (Type_error "arms of conditional have different types")
       else
         raise (Type_error "guard of conditional not a boolean")
@@ -205,7 +224,7 @@ let rec typeof ctx tm = match tm with
       let tyT2 = resolve_ty ctx (typeof ctx t2) in
       (match tyT1 with
            TyArr (tyT11, tyT12) ->
-             if tyT2 = tyT11 then tyT12
+             if subtype ctx tyT2 tyT11 then tyT12
              else raise (Type_error "parameter type mismatch")
          | _ -> raise (Type_error "arrow type expected"))
 
@@ -302,12 +321,10 @@ let rec typeof ctx tm = match tm with
       let variant_ty = resolve_ty ctx (typeof ctx t) in
       (match variant_ty with
            TyVariant cases ->
-             (* Check that the set of branch labels matches the variant labels exactly *)
              let branch_labels = List.map (fun (l, _, _) -> l) branches in
              let case_labels   = List.map fst cases in
              if List.sort compare branch_labels <> List.sort compare case_labels then
                raise (Type_error "case branches do not match variant labels");
-             (* Type each branch *)
              let branch_types = List.map (fun (label, x, body) ->
                let label_ty =
                  match List.assoc_opt label cases with
@@ -318,11 +335,10 @@ let rec typeof ctx tm = match tm with
                let ctx' = addtbinding ctx x label_ty in
                resolve_ty ctx' (typeof ctx' body)
              ) branches in
-             (* All branches must have the same type *)
              (match branch_types with
                   [] -> raise (Type_error "empty case expression")
                 | first :: rest ->
-                    if List.for_all (fun ty -> ty = first) rest then first
+                    if List.for_all (fun ty -> subtype ctx ty first || subtype ctx first ty) rest then first
                     else raise (Type_error "case branches have different types"))
          | _ ->
              raise (Type_error "variant type expected in case expression"))
@@ -744,7 +760,7 @@ let rec print_ty ty = match ty with
       print_string "}";
       close_box ()
   | TyVariant cases ->
-      open_hovbox 1;
+      open_box 1;
       print_string "<";
       let rec aux = function
           [] -> ()
@@ -790,45 +806,44 @@ let rec print_term tm = match tm with
       print_term t3;
       close_box ()
   | TmAbs (x, ty, t) ->
-      open_hovbox 2;
+      open_box 0;
       print_string ("lambda " ^ x ^ ":");
       print_ty ty;
       print_string ".";
-      print_cut ();
       print_term t;
       close_box ()
   | TmLetIn (x, TmFix (TmAbs (x', ty, t1)), t2) when x = x' ->
       (* letrec is printed as letrec, not as let/fix *)
-      open_vbox 2;
+      open_hovbox 0;
       print_string ("letrec " ^ x ^ " : ");
       print_ty ty;
       print_string " = ";
       print_term t1;
-      print_cut ();
-      print_string "in ";
+      print_string " in ";
       print_term t2;
       close_box ()
   | TmLetIn (x, t1, t2) ->
-      open_vbox 2;
+      open_hovbox 0;
       print_string ("let " ^ x ^ " = ");
       print_term t1;
-      print_cut ();
-      print_string "in ";
+      print_string " in ";
       print_term t2;
       close_box ()
   | TmCase (t, branches) ->
-      open_vbox 2;
+      open_hovbox 0;
       print_string "case ";
       print_term t;
       print_string " of";
-      print_cut ();
+      print_space ();
       let rec aux = function
           [] -> ()
         | [(label, x, body)] ->
-            print_string ("| <" ^ label ^ "=" ^ x ^ "> => " ^ string_of_term body)
+            print_string ("<" ^ label ^ "=" ^ x ^ "> => ");
+            print_term body
         | (label, x, body) :: rest ->
-            print_string ("| <" ^ label ^ "=" ^ x ^ "> => " ^ string_of_term body);
-            print_cut ();
+            print_string ("<" ^ label ^ "=" ^ x ^ "> => ");
+            print_term body;
+            print_string " | ";
             aux rest
       in aux branches;
       close_box ()
@@ -984,12 +999,11 @@ and print_atomicTerm tm = match tm with
       in aux fields;
       print_string "}";
       close_box ()
-  | TmVariant (label, t, ty) ->
-      open_hovbox 2;
+  | TmVariant (label, t, _ty) ->
+      open_box 1;
       print_string ("<" ^ label ^ " = ");
       print_term t;
-      print_string "> as ";
-      print_ty ty;
+      print_string ">";
       close_box ()
   | _ ->
       open_box 1;
@@ -1002,7 +1016,7 @@ and print_atomicTerm tm = match tm with
 (* pretty_printer is the single entry point used by execute.
    's' is the label printed before the colon (either "-" or the bound name). *)
 let pretty_printer s ty tm =
-  pp_set_margin std_formatter 70;
+  pp_set_margin std_formatter 1000;
   open_hovbox 0;
   print_string s;
   print_string " : ";
@@ -1027,7 +1041,7 @@ let execute ctx = function
       addvbinding ctx x tyTm tm'
   | BindTy (x, ty) ->
       let ty' = resolve_ty ctx ty in
-      print_string ("type " ^ x ^ " = ");
+      print_string (x ^ " = ");
       print_ty ty';
       force_newline ();
       print_flush ();
